@@ -3,7 +3,10 @@ from typing import Any
 from app.backend_client import (
     get_account_by_id,
     get_collection_by_account,
+    get_knife_details,
+    get_maker_details,
     search_accounts,
+    search_knife_catalog,
     search_posts,
     submit_report,
 )
@@ -81,6 +84,66 @@ BASE_TOOL_SPECS = [
             },
         }
     },
+    {
+        "toolSpec": {
+            "name": "search_knife_catalog",
+            "description": (
+                "Search the Balisong Flipping Center knife reference catalog by knife name or maker name. "
+                "Use this for questions about specific balisong models or makers — specs, pricing, release "
+                "history, where to buy. Separate from search_posts, which searches community marketplace "
+                "and trick posts, not the reference catalog."
+            ),
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "search": {
+                            "type": "string",
+                            "description": "Knife name or maker name to search for. Omit to list the full catalog.",
+                        },
+                    },
+                }
+            },
+        }
+    },
+    {
+        "toolSpec": {
+            "name": "get_knife_details",
+            "description": (
+                "Get full details for a specific knife from the reference catalog — every version, its "
+                "variants, specs, pricing, and where to buy. Requires the knife's slug, from a prior "
+                "search_knife_catalog result."
+            ),
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "slug": {"type": "string", "description": "Knife slug, from search_knife_catalog results"},
+                    },
+                    "required": ["slug"],
+                }
+            },
+        }
+    },
+    {
+        "toolSpec": {
+            "name": "get_maker_details",
+            "description": (
+                "Get details about a balisong maker/brand from the reference catalog, including their "
+                "listed knives. Requires the maker's slug, from a prior search_knife_catalog result's "
+                "makerSlug field."
+            ),
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "slug": {"type": "string", "description": "Maker slug, from search_knife_catalog results' makerSlug field"},
+                    },
+                    "required": ["slug"],
+                }
+            },
+        }
+    },
 ]
 
 REPORT_TOOL_SPEC = {
@@ -133,6 +196,12 @@ def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None
         return {"results": search_accounts(tool_input.get("query", ""))}
     if name == "get_collection":
         return get_collection_by_account(tool_input["account_id"])
+    if name == "search_knife_catalog":
+        return {"results": search_knife_catalog(tool_input.get("search"))}
+    if name == "get_knife_details":
+        return get_knife_details(tool_input["slug"])
+    if name == "get_maker_details":
+        return get_maker_details(tool_input["slug"])
     if name == "report_content":
         if not access_token:
             return {"error": "No logged-in user for this session; cannot submit a report."}

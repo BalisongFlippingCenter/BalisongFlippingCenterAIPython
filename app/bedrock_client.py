@@ -39,7 +39,6 @@ def stream_chat(
                 index = event["contentBlockDelta"]["contentBlockIndex"]
                 delta = event["contentBlockDelta"]["delta"]
                 if "text" in delta:
-                    yield delta["text"]
                     block = content_blocks.setdefault(index, {"type": "text", "text": ""})
                     block["text"] += delta["text"]
                 elif "toolUse" in delta:
@@ -80,6 +79,9 @@ def stream_chat(
         messages.append({"role": "assistant", "content": assistant_content})
 
         if stop_reason != "tool_use":
+            for block in assistant_content:
+                if "text" in block:
+                    yield block["text"]
             save_history(session_id, messages)
             break
 
