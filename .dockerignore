@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.log
+.git
+.gitignore
+README.md
+dev.sh
+restart-backend.sh
+stop.sh
