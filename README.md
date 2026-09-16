@@ -8,10 +8,11 @@ Latch answers questions about the site, balisong flipping, and specific knives/m
 
 - **Model access:** [Anthropic's Claude](https://www.anthropic.com/claude) via **AWS Bedrock's Converse API** (`boto3` `bedrock-runtime` client, `converse_stream`). Not a direct call to Anthropic's Messages API — Bedrock wraps the same model behind AWS's own request/response shape and IAM-based auth.
 - **Streaming:** the Bedrock response is a stream of content-block deltas; `stream_chat()` in `app/bedrock_client.py` accumulates them into text and tool-use blocks and yields text as it arrives, forwarded to the client as a chunked `StreamingResponse`.
-- **Conversation history:** kept per `session_id` across turns (`app/sessions.py`). Currently an in-process dict — see [Known limitations](#known-limitations).
+- **Conversation history:** kept per `session_id` across turns (`app/sessions.py`), persisted in Redis with a 24-hour TTL — survives restarts and is shared across instances.
 - **System prompt:** a single template in `app/prompts.py` (`build_system_prompt`), parameterized by the user's current page. All persona, tone, and site-navigation rules live in this one file, editable without touching orchestration code.
 - **Tool calling:** `app/tools.py` declares the tool specs (`search_posts`, `get_account_profile`, `get_collection`, `search_knife_catalog`, `get_knife_details`, `get_maker_details`, and — for logged-in sessions only — `report_content`) and dispatches them. Each tool calls out to the real BFC backend via `app/backend_client.py` (an `httpx` client). This is genuine function calling: Claude decides when to call a tool, gets real results back, and continues the response — not prompt-stuffed retrieval.
-- **Error handling:** `backend_client.py` wraps every backend call in `try/except` for `httpx.HTTPStatusError` and `httpx.RequestError` (including timeouts, on a 10s client timeout) and returns the error back to the model as a tool result, so a failed lookup becomes something Claude can talk around instead of a crash.
+- **Error handling:** `backend_client.py` wraps every backend call in `try/except` for `httpx.HTTPStatusError` and `httpx.RequestError` (including timeouts, on a 10s client timeout) and returns the error back to the model as a tool result, so a failed lookup becomes something Claude can talk around instead of a crash. The Bedrock client (`bedrock_client.py`) retries throttling/service-unavailable errors up to 3 times with exponential backoff before falling back to a plain-text error yielded to the client.
+- **Auth:** `POST /chat/stream` requires an `X-Internal-Secret` header matching `AI_SERVICE_SHARED_SECRET`, sent by the backend on every relayed call. The check is skipped when the secret is unset (local dev).
 
 ## Project layout
 
@@ -34,6 +35,7 @@ app/
 - An AWS account with Bedrock model access enabled for the Claude model you intend to use, in the target region
 - AWS credentials available locally (see [Credentials & swapping the model](#credentials--swapping-the-model) below)
 - A running instance of the BFC backend API (or any API matching the endpoints `backend_client.py` calls)
+- A running Redis instance (e.g. `docker run -p 6379:6379 redis:7-alpine`) for conversation history
 
 **Steps**
 
@@ -63,6 +65,8 @@ Health check: `GET /health` → `{"status": "ok"}`
 | `AWS_REGION` | `us-east-1` | AWS region for the Bedrock client |
 | `BEDROCK_MODEL_ID` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` | Bedrock model ID to invoke |
 | `BACKEND_BASE_URL` | `http://localhost:8080/api` | Base URL of the BFC backend API that the tools call |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis instance used to persist conversation history |
+| `AI_SERVICE_SHARED_SECRET` | `""` | Shared secret the backend sends as `X-Internal-Secret`; auth is skipped if unset |
 
 Defined in `app/config.py` via `pydantic-settings`, loaded from `.env`.
 
@@ -96,6 +100,5 @@ Response: `text/plain` streamed chunks of the assistant's reply, as they're gene
 
 ## Known limitations
 
-- **Conversation history is in-process memory** (`app/sessions.py`) — it resets on restart and doesn't share state across multiple instances. A production deployment should move this to Redis or a database.
-- **No retry/backoff around the Bedrock call itself yet.** Backend API calls (`backend_client.py`) already catch and gracefully handle HTTP errors and timeouts; the same treatment (retry on throttling, timeout handling) hasn't yet been added around `converse_stream` in `bedrock_client.py`.
-- **No auth on `/chat/stream` itself** beyond the optional `access_token` that's passed through to backend calls — anyone who can reach this service can start a session.
+- **Catalog data isn't fully verified yet.** Only the Squid Industries entries have been fact-checked against official/retailer sources; Squidtrainer and Mako still need the same pass.
+- **`X-Internal-Secret` is a shared static secret**, not per-caller or rotatable without a redeploy of both sides. Fine for the current backend-to-AI-service trust boundary; wouldn't scale to more callers without per-client keys.

@@ -72,7 +72,10 @@ the newest one and stop. Always end with the specific page link using the slug y
 /product-world/knife/<slug> for a knife, /product-world/maker/<slug> for a maker — every time, not just \
 sometimes. If the question is about a maker, use get_maker_details and mention their notable knives with \
 each knife's own /product-world/knife/<slug> link, plus the maker's own page. Only if search_knife_catalog \
-comes back empty should you say the catalog doesn't have that one yet — never as a substitute for calling it.
+comes back empty should you say the catalog doesn't have that one yet — never as a substitute for calling it. \
+When a user describes criteria instead of naming a specific knife (e.g. "titanium handle under $300", "what \
+bushing-pivot knives do you have"), use search_knife_catalog's filter params (blade_material, handle_material, \
+pivot_system, max_price) rather than guessing from memory or listing the whole catalog.
 - Learn (/learn): general educational content about balisongs themselves, not tied to any specific product \
 or trick. This is where questions about parts, materials, terminology, legality, or picking a first knife \
 belong — check this list FIRST for that kind of question, before defaulting to Tutorial Center or Product \

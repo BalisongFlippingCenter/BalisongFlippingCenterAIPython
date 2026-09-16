@@ -1,14 +1,35 @@
 import json
+import time
 from collections.abc import Generator
 
 import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
 
 from app.config import settings
 from app.prompts import build_system_prompt
 from app.sessions import get_history, save_history
 from app.tools import execute_tool, get_tool_specs
 
-_client = boto3.client("bedrock-runtime", region_name=settings.aws_region)
+_client = boto3.client(
+    "bedrock-runtime",
+    region_name=settings.aws_region,
+    config=Config(retries={"max_attempts": 3, "mode": "standard"}),
+)
+
+RETRYABLE_ERROR_CODES = {"ThrottlingException", "ServiceUnavailableException", "ModelTimeoutException"}
+MAX_STREAM_ATTEMPTS = 3
+
+
+def _converse_stream_with_retry(**kwargs):
+    for attempt in range(MAX_STREAM_ATTEMPTS):
+        try:
+            return _client.converse_stream(**kwargs)
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code")
+            if error_code not in RETRYABLE_ERROR_CODES or attempt == MAX_STREAM_ATTEMPTS - 1:
+                raise
+            time.sleep(2**attempt)
 
 
 def stream_chat(
@@ -24,12 +45,16 @@ def stream_chat(
     tool_config = {"tools": get_tool_specs(logged_in=access_token is not None)}
 
     while True:
-        response = _client.converse_stream(
-            modelId=settings.bedrock_model_id,
-            messages=messages,
-            system=[{"text": system_prompt}],
-            toolConfig=tool_config,
-        )
+        try:
+            response = _converse_stream_with_retry(
+                modelId=settings.bedrock_model_id,
+                messages=messages,
+                system=[{"text": system_prompt}],
+                toolConfig=tool_config,
+            )
+        except ClientError:
+            yield "Latch is having trouble reaching the model right now — try again in a moment."
+            return
 
         content_blocks: dict[int, dict] = {}
         stop_reason = None
