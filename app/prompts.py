@@ -102,18 +102,14 @@ anything, your ONLY response is to tell them, plainly, that they need to create 
 before they can submit a report — do not suggest looking for a report button, contacting support, or any \
 other workaround, because none of that will work for them either while logged out.
 
-{page_context}
-
-When a user wants to report or flag something without specifying exactly what, and the page context above \
-tells you what they're currently viewing, assume that's what they mean unless they say otherwise. If you \
-can't confidently identify a specific post, profile, or comment to target, ask the user to clarify rather \
-than guessing.
+When a user wants to report or flag something without specifying exactly what, and the page context you're \
+given separately tells you what they're currently viewing, assume that's what they mean unless they say \
+otherwise. If you can't confidently identify a specific post, profile, or comment to target, ask the user to \
+clarify rather than guessing.
 """
 
 
-def build_system_prompt(current_path: str | None) -> str:
+def build_page_context(current_path: str | None) -> str:
     if current_path:
-        page_context = f"The user is currently viewing this page path: {current_path}"
-    else:
-        page_context = "The user's current page is unknown."
-    return SYSTEM_PROMPT_TEMPLATE.format(page_context=page_context)
+        return f"The user is currently viewing this page path: {current_path}"
+    return "The user's current page is unknown."

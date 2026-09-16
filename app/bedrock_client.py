@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from collections.abc import Generator
 
@@ -7,9 +8,11 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.config import settings
-from app.prompts import build_system_prompt
+from app.prompts import SYSTEM_PROMPT_TEMPLATE, build_page_context
 from app.sessions import get_history, save_history
 from app.tools import execute_tool, get_tool_specs
+
+log = logging.getLogger(__name__)
 
 _client = boto3.client(
     "bedrock-runtime",
@@ -41,7 +44,15 @@ def stream_chat(
     messages = get_history(session_id)
     messages.append({"role": "user", "content": [{"text": message}]})
 
-    system_prompt = build_system_prompt(current_path)
+    # The persona/rules block never changes between requests, so it's cached
+    # separately from the per-turn page path -- splicing current_path into
+    # the middle of the prompt (the old behavior) would invalidate the cache
+    # on every single request regardless of the checkpoint below.
+    system = [
+        {"text": SYSTEM_PROMPT_TEMPLATE},
+        {"cachePoint": {"type": "default"}},
+        {"text": build_page_context(current_path)},
+    ]
     tool_config = {"tools": get_tool_specs(logged_in=access_token is not None)}
 
     while True:
@@ -49,7 +60,7 @@ def stream_chat(
             response = _converse_stream_with_retry(
                 modelId=settings.bedrock_model_id,
                 messages=messages,
-                system=[{"text": system_prompt}],
+                system=system,
                 toolConfig=tool_config,
             )
         except ClientError:
@@ -81,6 +92,15 @@ def stream_chat(
                     }
             elif "messageStop" in event:
                 stop_reason = event["messageStop"]["stopReason"]
+            elif "metadata" in event:
+                usage = event["metadata"].get("usage", {})
+                log.info(
+                    "bedrock usage: input=%s output=%s cache_read=%s cache_write=%s",
+                    usage.get("inputTokens"),
+                    usage.get("outputTokens"),
+                    usage.get("cacheReadInputTokens"),
+                    usage.get("cacheWriteInputTokens"),
+                )
 
         assistant_content = []
         tool_uses = []
