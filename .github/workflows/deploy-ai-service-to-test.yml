@@ -11,8 +11,28 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest
+
   deploy:
     name: Build, Push, and Deploy
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -38,9 +58,9 @@ jobs:
 
       # Not reachable via a public health-check URL -- the AI instance's
       # security group only allows port 8001 from the backend instance, not
-      # the internet -- so the health check runs inside this same SSM
-      # command instead of a separate curl step. Same pattern as prod's
-      # deploy-ai-service-to-prod.yml.
+      # the internet (see testing/infra/security_groups.tf) -- so the health
+      # check runs inside this same SSM command instead of a separate curl
+      # step. Same rationale as deploy-ai-service-to-prod.yml.
       - name: Deploy via SSM
         env:
           INSTANCE_ID: ${{ vars.AWS_TESTING_EC2_INSTANCE_ID }}
@@ -48,8 +68,18 @@ jobs:
         run: |
           set -euo pipefail
           REGISTRY="${ECR_URL%%/*}"
-          COMMANDS=$(jq -n --arg registry "$REGISTRY" '[
+
+          # Re-pull every /balisong/testing/ai-service/ SSM param into .env
+          # before each deploy -- same rationale as
+          # deploy-server-to-test.yml: user_data only writes .env once at
+          # first boot, so a newly-added SSM parameter (e.g.
+          # AI_SERVICE_SHARED_SECRET, REDIS_URL) never reaches the running
+          # container until someone manually refreshes it.
+          ENV_REFRESH='aws ssm get-parameters-by-path --path /balisong/testing/ai-service/ --with-decryption --region us-east-1 --query "Parameters[*].[Name,Value]" --output text > /tmp/params.txt && : > /home/ec2-user/.env && while IFS=$(printf "\t") read -r name value; do echo "${name##*/}=$value" >> /home/ec2-user/.env; done < /tmp/params.txt && chmod 600 /home/ec2-user/.env && chown ec2-user:ec2-user /home/ec2-user/.env && rm -f /tmp/params.txt'
+
+          COMMANDS=$(jq -n --arg registry "$REGISTRY" --arg envrefresh "$ENV_REFRESH" '[
             "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin \($registry)",
+            $envrefresh,
             "cd /home/ec2-user",
             "docker-compose pull ai-service",
             "docker-compose up -d --no-deps --force-recreate ai-service",

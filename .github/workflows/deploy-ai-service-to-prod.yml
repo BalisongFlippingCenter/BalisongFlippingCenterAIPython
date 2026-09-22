@@ -11,8 +11,28 @@ permissions:
   contents: read
 
 jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest
+
   deploy:
     name: Build, Push, and Deploy
+    needs: test
     runs-on: ubuntu-latest
 
     steps:
@@ -30,16 +50,20 @@ jobs:
 
       - name: Build and push image
         env:
-          ECR_URL: ${{ vars.AWS_AI_SERVICE_ECR_REPOSITORY_URL }}
+          ECR_URL: ${{ vars.AWS_ECR_REPOSITORY_URL }}
         run: |
           docker build --no-cache -t "$ECR_URL:${{ github.sha }}" -t "$ECR_URL:latest" .
           docker push "$ECR_URL:${{ github.sha }}"
           docker push "$ECR_URL:latest"
 
+      # Not reachable via a public health-check URL — the AI instance's
+      # security group only allows port 8001 from the backend instance, not
+      # the internet (see security_groups.tf) — so the health check runs
+      # inside this same SSM command instead of a separate curl step.
       - name: Deploy via SSM
         env:
-          INSTANCE_ID: ${{ vars.AWS_AI_SERVICE_EC2_INSTANCE_ID }}
-          ECR_URL: ${{ vars.AWS_AI_SERVICE_ECR_REPOSITORY_URL }}
+          INSTANCE_ID: ${{ vars.AWS_EC2_INSTANCE_ID }}
+          ECR_URL: ${{ vars.AWS_ECR_REPOSITORY_URL }}
         run: |
           set -euo pipefail
           REGISTRY="${ECR_URL%%/*}"
@@ -49,7 +73,7 @@ jobs:
             "docker-compose pull ai-service",
             "docker-compose up -d --no-deps --force-recreate ai-service",
             "docker image prune -af",
-            "curl -fsS http://localhost:8001/health"
+            "for i in $(seq 1 30); do curl -fsS http://localhost:8001/health && exit 0; sleep 5; done; exit 1"
           ]')
 
           COMMAND_ID=$(aws ssm send-command \

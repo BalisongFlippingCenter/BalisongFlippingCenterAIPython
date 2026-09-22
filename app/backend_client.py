@@ -53,8 +53,20 @@ def search_posts(
     return _get("/posts/any", params)
 
 
-def search_knife_catalog(search: str | None = None) -> dict:
-    params = {"search": search}
+def search_knife_catalog(
+    search: str | None = None,
+    blade_material: str | None = None,
+    handle_material: str | None = None,
+    pivot_system: str | None = None,
+    max_price: float | None = None,
+) -> dict:
+    params = {
+        "search": search,
+        "bladeMaterial": blade_material,
+        "handleMaterial": handle_material,
+        "pivotSystem": pivot_system,
+        "maxPrice": max_price,
+    }
     params = {k: v for k, v in params.items() if v is not None}
     return _get("/catalog/any/knives", params)
 

@@ -88,10 +88,11 @@ BASE_TOOL_SPECS = [
         "toolSpec": {
             "name": "search_knife_catalog",
             "description": (
-                "Search the Balisong Flipping Center knife reference catalog by knife name or maker name. "
-                "Use this for questions about specific balisong models or makers — specs, pricing, release "
-                "history, where to buy. Separate from search_posts, which searches community marketplace "
-                "and trick posts, not the reference catalog."
+                "Search or filter the Balisong Flipping Center knife reference catalog. Use this for questions "
+                "about specific balisong models or makers — specs, pricing, release history — or to find knives "
+                "matching given criteria (e.g. \"titanium handle under $300\"). Separate from search_posts, "
+                "which searches community marketplace and trick posts, not the reference catalog. Filters "
+                "combine with AND; omit any you don't need."
             ),
             "inputSchema": {
                 "json": {
@@ -99,7 +100,23 @@ BASE_TOOL_SPECS = [
                     "properties": {
                         "search": {
                             "type": "string",
-                            "description": "Knife name or maker name to search for. Omit to list the full catalog.",
+                            "description": "Knife name or maker name to search for. Omit to consider the full catalog.",
+                        },
+                        "blade_material": {
+                            "type": "string",
+                            "description": "Filter to knives with at least one variant in this blade material (e.g. S35VN, TITANIUM).",
+                        },
+                        "handle_material": {
+                            "type": "string",
+                            "description": "Filter to knives with at least one version in this handle material (e.g. TITANIUM, ALUMINIUM_6061).",
+                        },
+                        "pivot_system": {
+                            "type": "string",
+                            "description": "Filter to knives with at least one version using this pivot system (e.g. BUSHING, BEARING).",
+                        },
+                        "max_price": {
+                            "type": "number",
+                            "description": "Filter to knives with at least one variant priced at or below this MSRP.",
                         },
                     },
                 }
@@ -197,7 +214,15 @@ def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None
     if name == "get_collection":
         return get_collection_by_account(tool_input["account_id"])
     if name == "search_knife_catalog":
-        return {"results": search_knife_catalog(tool_input.get("search"))}
+        return {
+            "results": search_knife_catalog(
+                search=tool_input.get("search"),
+                blade_material=tool_input.get("blade_material"),
+                handle_material=tool_input.get("handle_material"),
+                pivot_system=tool_input.get("pivot_system"),
+                max_price=tool_input.get("max_price"),
+            )
+        }
     if name == "get_knife_details":
         return get_knife_details(tool_input["slug"])
     if name == "get_maker_details":
