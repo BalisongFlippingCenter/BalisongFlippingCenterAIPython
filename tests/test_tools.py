@@ -28,6 +28,14 @@ def test_get_tool_specs_always_includes_the_base_tools():
         assert "get_account_profile" in names
 
 
+def test_post_and_catalog_filters_are_constrained_to_backend_enum_values():
+    specs = {spec["toolSpec"]["name"]: spec["toolSpec"]["inputSchema"]["json"]["properties"] for spec in get_tool_specs(False)}
+    assert specs["search_posts"]["post_type"]["enum"] == ["GENERIC", "BUY_SELL", "TRADE", "TRICK_TUTORIAL", "COMBO"]
+    assert specs["search_posts"]["difficulty_tag"]["enum"] == ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"]
+    assert specs["search_knife_catalog"]["pivot_system"]["enum"] == ["BEARINGS", "BUSHINGS", "WASHERS", "OTHER"]
+    assert "TITANIUM" in specs["search_knife_catalog"]["handle_material"]["enum"]
+
+
 @patch("app.tools.search_posts")
 def test_execute_tool_search_posts_forwards_input_with_defaults(mock_search_posts):
     mock_search_posts.return_value = {"content": []}

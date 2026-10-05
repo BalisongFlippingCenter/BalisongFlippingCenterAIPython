@@ -25,6 +25,9 @@ JUDGE_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 # USD per million (input, output) tokens at Anthropic list price -- Bedrock on-demand rates may differ.
 LATCH_PRICING = (1.00, 5.00)
 JUDGE_PRICING = (3.00, 15.00)
+# Prompt-cache reads bill at 0.1x the input price and 5-minute cache writes at 1.25x.
+CACHE_READ_MULTIPLIER = 0.1
+CACHE_WRITE_MULTIPLIER = 1.25
 EVAL_ACCESS_TOKEN = "Bearer eval-token"
 FAKE_REPORT_RESULT = {"id": 0, "status": "PENDING", "note": "eval stub -- no report was filed"}
 MAX_JUDGE_RESULT_CHARS = 1500
@@ -58,12 +61,16 @@ class UsageRecorder(logging.Handler):
         super().__init__()
         self.input_tokens = 0
         self.output_tokens = 0
+        self.cache_read_tokens = 0
+        self.cache_write_tokens = 0
 
     def emit(self, record):
         if record.msg.startswith("bedrock usage"):
-            input_tokens, output_tokens, *_ = record.args
+            input_tokens, output_tokens, cache_read_tokens, cache_write_tokens = record.args
             self.input_tokens += input_tokens or 0
             self.output_tokens += output_tokens or 0
+            self.cache_read_tokens += cache_read_tokens or 0
+            self.cache_write_tokens += cache_write_tokens or 0
 
 
 def recording_execute_tool(calls: list[dict]):
@@ -100,6 +107,8 @@ def run_case(case: dict) -> dict:
         "latency_seconds": time.monotonic() - start,
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
+        "cache_read_tokens": usage.cache_read_tokens,
+        "cache_write_tokens": usage.cache_write_tokens,
     }
 
 
@@ -174,8 +183,9 @@ def judge(case: dict, run: dict, client) -> tuple[str | None, int, int]:
     return failure, usage["inputTokens"], usage["outputTokens"]
 
 
-def cost(input_tokens: int, output_tokens: int, pricing: tuple[float, float]) -> float:
-    return (input_tokens * pricing[0] + output_tokens * pricing[1]) / 1_000_000
+def cost(input_tokens: int, output_tokens: int, pricing: tuple[float, float], cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
+    billed_input = input_tokens + cache_read_tokens * CACHE_READ_MULTIPLIER + cache_write_tokens * CACHE_WRITE_MULTIPLIER
+    return (billed_input * pricing[0] + output_tokens * pricing[1]) / 1_000_000
 
 
 def write_report(results: list[dict], runs_per_case: int, totals: dict) -> Path:
@@ -190,7 +200,9 @@ def write_report(results: list[dict], runs_per_case: int, totals: dict) -> Path:
         by_category[result["category"]][0] += result["passed"]
         by_category[result["category"]][1] += result["runs"]
 
-    latch_cost = cost(totals["latch_input"], totals["latch_output"], LATCH_PRICING)
+    latch_cost = cost(
+        totals["latch_input"], totals["latch_output"], LATCH_PRICING, totals["latch_cache_read"], totals["latch_cache_write"]
+    )
     judge_cost = cost(totals["judge_input"], totals["judge_output"], JUDGE_PRICING)
     lines = [
         f"# Latch eval report -- {timestamp}",
@@ -199,7 +211,7 @@ def write_report(results: list[dict], runs_per_case: int, totals: dict) -> Path:
         f"- **Cases:** {len(results)} x {runs_per_case} runs",
         f"- **Latch model:** `{settings.bedrock_model_id}` -- judge: `{JUDGE_MODEL_ID}`",
         f"- **Latch tokens:** {totals['latch_input']:,} in / {totals['latch_output']:,} out "
-        f"(avg {totals['latch_input'] // total_runs:,} in per case run)",
+        f"+ {totals['latch_cache_read']:,} cache read / {totals['latch_cache_write']:,} cache write",
         f"- **Avg latency per case run:** {totals['latency'] / total_runs:.1f}s",
         f"- **Estimated cost (list price):** ${latch_cost:.3f} Latch + ${judge_cost:.3f} judge "
         f"= ${latch_cost + judge_cost:.3f}",
@@ -250,6 +262,8 @@ def main():
                     failures.append(judge_failure)
             totals["latch_input"] += run["input_tokens"]
             totals["latch_output"] += run["output_tokens"]
+            totals["latch_cache_read"] += run["cache_read_tokens"]
+            totals["latch_cache_write"] += run["cache_write_tokens"]
             totals["latency"] += run["latency_seconds"]
             result["passed"] += not failures
             result["failures"] += failures
