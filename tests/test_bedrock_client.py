@@ -113,7 +113,7 @@ def test_system_prompt_has_a_cache_point_between_the_static_persona_and_the_page
 
     system = mock_client.converse_stream.call_args.kwargs["system"]
     assert system[1] == {"cachePoint": {"type": "default"}}
-    assert system[2] == {"text": "The user is currently viewing this page path: /community"}
+    assert system[2] == {"text": "The user is currently viewing this page path: /community\nThe user is NOT logged in."}
     assert "You are Latch" in system[0]["text"]
 
 

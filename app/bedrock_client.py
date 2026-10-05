@@ -8,7 +8,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.config import settings
-from app.prompts import SYSTEM_PROMPT_TEMPLATE, build_page_context
+from app.prompts import SYSTEM_PROMPT_TEMPLATE, build_request_context
 from app.sessions import get_history, save_history
 from app.tools import execute_tool, get_tool_specs
 
@@ -81,15 +81,16 @@ def stream_chat(
     messages = _compact_old_tool_results(_trim_history(messages, settings.max_history_turns))
 
     # The persona/rules block never changes between requests, so it's cached
-    # separately from the per-turn page path -- splicing current_path into
-    # the middle of the prompt (the old behavior) would invalidate the cache
-    # on every single request regardless of the checkpoint below.
+    # separately from the per-turn page path and login state -- splicing them
+    # into the middle of the prompt (the old behavior) would invalidate the
+    # cache on every single request regardless of the checkpoint below.
+    logged_in = access_token is not None
     system = [
         {"text": SYSTEM_PROMPT_TEMPLATE},
         {"cachePoint": {"type": "default"}},
-        {"text": build_page_context(current_path)},
+        {"text": build_request_context(current_path, logged_in)},
     ]
-    tool_config = {"tools": get_tool_specs(logged_in=access_token is not None)}
+    tool_config = {"tools": get_tool_specs(logged_in=logged_in)}
     has_streamed_text = False
 
     while True:
