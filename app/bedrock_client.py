@@ -35,6 +35,41 @@ def _converse_stream_with_retry(**kwargs):
             time.sleep(2**attempt)
 
 
+OMITTED_TOOL_RESULT = {"note": "result omitted from history"}
+
+
+def _is_turn_start(message: dict) -> bool:
+    return message["role"] == "user" and any("text" in block for block in message["content"])
+
+
+def _trim_history(messages: list[dict], max_turns: int) -> list[dict]:
+    turn_starts = [i for i, message in enumerate(messages) if _is_turn_start(message)]
+    if len(turn_starts) > max_turns:
+        messages = messages[turn_starts[-max_turns]:]
+    return messages
+
+
+# Tool results (e.g. 20 full posts from search_posts) dominate input tokens.
+# Once a turn is over, the assistant's own reply already summarizes what the
+# tools found, so the raw results from earlier turns can be dropped.
+def _compact_old_tool_results(messages: list[dict]) -> list[dict]:
+    current_turn_start = max(i for i, message in enumerate(messages) if _is_turn_start(message))
+    compacted = []
+    for i, message in enumerate(messages):
+        if i < current_turn_start and any("toolResult" in block for block in message["content"]):
+            message = {
+                "role": message["role"],
+                "content": [
+                    {"toolResult": {**block["toolResult"], "content": [{"json": OMITTED_TOOL_RESULT}]}}
+                    if "toolResult" in block
+                    else block
+                    for block in message["content"]
+                ],
+            }
+        compacted.append(message)
+    return compacted
+
+
 def stream_chat(
     session_id: str,
     message: str,
@@ -43,6 +78,7 @@ def stream_chat(
 ) -> Generator[str, None, None]:
     messages = get_history(session_id)
     messages.append({"role": "user", "content": [{"text": message}]})
+    messages = _compact_old_tool_results(_trim_history(messages, settings.max_history_turns))
 
     # The persona/rules block never changes between requests, so it's cached
     # separately from the per-turn page path -- splicing current_path into

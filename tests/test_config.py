@@ -7,6 +7,7 @@ def test_defaults_match_expected_values(monkeypatch):
     monkeypatch.delenv("BACKEND_BASE_URL", raising=False)
     monkeypatch.delenv("REDIS_URL", raising=False)
     monkeypatch.delenv("AI_SERVICE_SHARED_SECRET", raising=False)
+    monkeypatch.delenv("MAX_HISTORY_TURNS", raising=False)
 
     settings = Settings(_env_file=None)
 
@@ -15,6 +16,7 @@ def test_defaults_match_expected_values(monkeypatch):
     assert settings.backend_base_url == "http://localhost:8080/api"
     assert settings.redis_url == "redis://localhost:6379/0"
     assert settings.ai_service_shared_secret == ""
+    assert settings.max_history_turns == 10
 
 
 def test_reads_overrides_from_environment(monkeypatch):
