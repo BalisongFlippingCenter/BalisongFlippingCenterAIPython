@@ -28,6 +28,10 @@ app/
   sessions.py          Redis-backed conversation history
   routers/chat.py      POST /chat/stream endpoint
 tests/                 Pytest suite (respx for HTTP, fakeredis for sessions)
+evals/
+  cases.yaml           Eval cases and their pass criteria
+  run.py               Eval runner (real model, live read-only API)
+  reports/             Generated pass-rate reports
 ```
 
 ## Setup
@@ -67,7 +71,21 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-55 tests covering every module. No real AWS or Redis needed — Bedrock calls are mocked directly (`unittest.mock` on the `boto3` client; moto doesn't support `bedrock-runtime`'s `converse_stream` well), backend HTTP calls are mocked with `respx`, and the Redis-backed session store is swapped for `fakeredis` in tests via `conftest.py`. Both deploy pipelines run this suite as a required gate before building/pushing/deploying.
+62 tests covering every module. No real AWS or Redis needed — Bedrock calls are mocked directly (`unittest.mock` on the `boto3` client; moto doesn't support `bedrock-runtime`'s `converse_stream` well), backend HTTP calls are mocked with `respx`, and the Redis-backed session store is swapped for `fakeredis` in tests via `conftest.py`. Both deploy pipelines run this suite as a required gate before building/pushing/deploying.
+
+## Evals
+
+Unit tests prove the code does what it was written to do; evals measure whether Latch actually gives good answers. `evals/run.py` runs every case in `evals/cases.yaml` against the real model (3 runs each by default, to expose inconsistency), with tools hitting the live, read-only BFC API — except `report_content`, which is always stubbed so an eval run can never file a real report. Sessions use an in-memory `fakeredis`, so nothing else needs to be running.
+
+```bash
+pip install -r requirements-dev.txt
+python -m evals.run                 # full suite, 3 runs per case
+python -m evals.run --runs 1 --case report   # quick filtered run
+```
+
+Each case is graded on the final turn by deterministic checks — required/forbidden tool calls, required tool arguments (e.g. `post_type` contains `TRICK_TUTORIAL`), no tool call returning an error, and required/forbidden text in the reply — plus, for qualitative behavior (no hallucinated specs, correct logged-out reporting guidance, tone), a rubric graded by a stronger model (Claude Sonnet 4.6 on Bedrock, forced to return a structured pass/fail verdict). Each run writes `evals/reports/<timestamp>.md` (pass rate overall, by category, and by case with failure reasons, plus tokens, latency, and estimated cost) and a matching `.json` with full transcripts.
+
+Evals aren't part of CI: they cost money, results vary run to run, and the deploy role has no Bedrock access.
 
 ## Environment variables
 

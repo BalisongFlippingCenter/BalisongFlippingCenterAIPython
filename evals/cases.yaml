@@ -1,0 +1,226 @@
+# Each case runs its messages in one session; checks apply to the final turn.
+# expect keys (all optional):
+#   tools / forbid_tools   tool names that must / must not be called
+#   tool_args              {tool: {arg: substring}} -- some call of that tool has arg containing substring
+#   no_tool_errors         default true -- fail if any tool result is an error
+#   contains / contains_any / not_contains   case-insensitive substrings of the reply
+#   judge                  rubric for the LLM judge
+#
+# Facts below are from the live catalog as of 2026-10-05 (Mako, Squidtrainer, Tsunami, Squiddy).
+
+# --- Catalog ---
+- id: catalog-tsunami-blade-steel
+  category: catalog
+  messages: ["What's the blade steel on the Squid Industries Tsunami?"]
+  expect:
+    tools: [search_knife_catalog]
+    contains: [S35VN]
+
+- id: catalog-mako-pivot
+  category: catalog
+  messages: ["What pivot system does the Mako use?"]
+  expect:
+    tools: [search_knife_catalog]
+    contains: [washer]
+
+- id: catalog-tsunami-page-link
+  category: catalog
+  messages: ["Tell me about the Tsunami"]
+  expect:
+    contains: [/product-world/knife/squid-industries-tsunami]
+
+- id: catalog-tsunami-trainer-price
+  category: catalog
+  messages: ["How much is a Tsunami trainer?"]
+  expect:
+    contains_any: ["474", "475"]
+
+- id: catalog-titanium-filter
+  category: catalog
+  messages: ["Any titanium-handled balisongs in the catalog?"]
+  expect:
+    tool_args:
+      search_knife_catalog: {handle_material: TITANIUM}
+    contains: [tsunami]
+
+- id: catalog-budget-filter
+  category: catalog
+  messages: ["What's the cheapest knife you have listed? Under $100 ideally."]
+  expect:
+    contains: [squiddy]
+
+- id: catalog-maker
+  category: catalog
+  messages: ["What knives does Squid Industries make?"]
+  expect:
+    tools: [get_maker_details]
+    contains: [/product-world/maker/squid-industries]
+
+- id: catalog-knife-not-listed
+  category: catalog
+  messages: ["Tell me about the Krake Raken"]
+  expect:
+    tools: [search_knife_catalog]
+    judge: >-
+      If the catalog search returned no match, Latch says the catalog doesn't have it yet and does not state
+      any specs, materials, or prices that did not come from a tool result. If a tool did return a match,
+      every spec Latch states must come from that result.
+
+# --- Posts ---
+- id: posts-tutorial-filter
+  category: posts
+  messages: ["Show me trick tutorial posts"]
+  expect:
+    tool_args:
+      search_posts: {post_type: TRICK_TUTORIAL}
+
+- id: posts-difficulty-filter
+  category: posts
+  messages: ["Any intermediate-level tutorials on the site?"]
+  expect:
+    tool_args:
+      search_posts: {difficulty_tag: INTERMEDIATE}
+
+- id: posts-for-sale
+  category: posts
+  messages: ["Is anyone selling knives right now?"]
+  expect:
+    contains_any: [/product-world, /community]
+
+- id: posts-free-text
+  category: posts
+  messages: ["Find posts about rollovers"]
+  expect:
+    tools: [search_posts]
+
+# --- Profiles ---
+- id: profile-lookup
+  category: profiles
+  messages: ["Look up the user QSwKLegacy895"]
+  expect:
+    tools: [get_account_profile]
+    contains: [/QSwKLegacy895/4241]
+
+- id: profile-collection
+  category: profiles
+  messages: ["What knives does QSwKLegacy895 have in their collection?"]
+  expect:
+    tools: [get_collection]
+
+# --- Learn & navigation ---
+- id: learn-bushing
+  category: learn-navigation
+  messages: ["What is a bushing?"]
+  expect:
+    contains: [/learn/bushings-vs-washers-vs-bearings]
+
+- id: learn-legality
+  category: learn-navigation
+  messages: ["Is it legal to carry a balisong?"]
+  expect:
+    contains: [/learn/balisong-legality]
+
+- id: learn-first-knife
+  category: learn-navigation
+  messages: ["What should I get as my first balisong?"]
+  expect:
+    contains: [/learn/how-to-choose-your-first-balisong]
+
+- id: nav-trick-clips
+  category: learn-navigation
+  messages: ["Where can I see other people's trick clips?"]
+  expect:
+    contains: [/community]
+
+- id: nav-where-to-buy
+  category: learn-navigation
+  messages: ["Where do I go to buy a balisong?"]
+  expect:
+    contains: [/product-world]
+    judge: >-
+      Latch points to /product-world (the marketplace search) and/or Buy/Sell posts in /community. It must not
+      describe an individual /product-world/knife/... or /product-world/maker/... page as a place to buy.
+
+- id: nav-beginner-mentoring
+  category: learn-navigation
+  messages: ["I just got my first trainer, how do I start?"]
+  expect:
+    contains: [/tutorial-center]
+    judge: >-
+      Before routing to /tutorial-center, Latch briefly teaches real fundamentals itself -- at least two of:
+      practicing on a trainer, safe handle vs bite handle, or naming a beginner trick such as basic fanning.
+      The answer stays brief (a few sentences, not a full write-up).
+
+# --- Reporting ---
+- id: report-logged-out
+  category: reporting
+  logged_in: false
+  current_path: /post/2
+  messages: ["This post is spam, report it"]
+  expect:
+    forbid_tools: [report_content]
+    judge: >-
+      Latch plainly tells the user they need to create a free account and log in to report. It does not
+      suggest a report button, contacting support, or any other workaround.
+
+- id: report-current-page
+  category: reporting
+  logged_in: true
+  current_path: /post/2
+  messages: ["Report this post, it's spam"]
+  expect:
+    tool_args:
+      report_content: {target_type: POST, target_id: "2", reason: SPAM}
+
+- id: report-ambiguous-target
+  category: reporting
+  logged_in: true
+  messages: ["I want to report something"]
+  expect:
+    forbid_tools: [report_content]
+    judge: Latch asks the user what they want to report instead of guessing a target.
+
+- id: report-profile-name
+  category: reporting
+  logged_in: true
+  messages: ["The user QSwKLegacy895 has an offensive display name, flag it"]
+  expect:
+    tool_args:
+      report_content: {target_type: PROFILE, reason: INAPPROPRIATE_NAME}
+
+# --- Style ---
+- id: style-no-markdown
+  category: style
+  messages: ["Compare bushings and bearings for me"]
+  expect:
+    not_contains: ["**", "](", "`"]
+
+- id: style-casual-greeting
+  category: style
+  messages: ["hey"]
+  expect:
+    judge: >-
+      The reply is short and casual, like a fellow flipper texting back. No corporate phrasing such as
+      "I'd be happy to help", "great question", or "let me know if there's anything else", and no menu of
+      offered services.
+
+# --- Multi-turn ---
+- id: followup-live-blade-price
+  category: multi-turn
+  messages: ["Tell me about the Tsunami", "How much does the live blade cost?"]
+  expect:
+    contains: ["750"]
+
+- id: followup-collection-pronoun
+  category: multi-turn
+  messages: ["Look up QSwKLegacy895", "What's in their collection?"]
+  expect:
+    tools: [get_collection]
+
+- id: followup-report-from-results
+  category: multi-turn
+  logged_in: true
+  messages: ["Show me trick tutorial posts", "Report the first one as misinformation"]
+  expect:
+    tool_args:
+      report_content: {target_type: POST, reason: MISINFORMATION}
