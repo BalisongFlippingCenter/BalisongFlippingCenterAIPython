@@ -139,7 +139,8 @@
     contains: [/product-world]
     judge: >-
       Latch points to /product-world (the marketplace search) and/or Buy/Sell posts in /community. It must not
-      describe an individual /product-world/knife/... or /product-world/maker/... page as a place to buy.
+      describe an individual /product-world/knife/... or /product-world/maker/... page as a place to buy or as
+      having listings; suggesting those pages for reading up on specs before buying is fine.
 
 - id: nav-beginner-mentoring
   category: learn-navigation

@@ -24,6 +24,25 @@ REPORT_REASONS = [
     "INAPPROPRIATE_NAME",
     "INAPPROPRIATE_BIO",
 ]
+# Mirrors the backend's enums -- free-text guesses like "tutorial" are rejected with a 409.
+POST_TYPES = ["GENERIC", "BUY_SELL", "TRADE", "TRICK_TUTORIAL", "COMBO"]
+DIFFICULTY_TAGS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "EXPERT"]
+KNIFE_TYPES = ["LIVE_BLADE", "TRAINER", "BOTH"]
+BLADE_STYLES = [
+    "TANTO", "BOWIE", "KUKRI", "JAPANESE_TANTO", "SPEAR_POINT", "WEEHAWK", "AMERICAN_TANTO", "HORSE_SHOE",
+    "CLIP_POINT", "DROP_POINT", "WHARNCLIFFE", "SHEEPSFOOT", "DAGGER", "OTHER",
+]
+BLADE_MATERIALS = [
+    "ALUMINIUM", "STAINLESS_STEEL", "TITANIUM", "D2", "S35VN", "S32VN", "ALUMINIUM_6061", "HARDENED_STEEL",
+    "PLASTIC", "ALUMINIUM_7075", "M390", "ELMAX", "STEEL_154CM", "STEEL_14C28N", "MAGNACUT", "DAMASCUS",
+    "AUS_10", "AEB_L", "STEEL_12C27", "STEEL_440C", "CPVC", "ACETAL", "ULTEM", "HDPE", "OTHER",
+]
+HANDLE_MATERIALS = [
+    "TITANIUM", "ALUMINIUM", "STAINLESS_STEEL", "G_10", "G_10_TITANIUM", "G_10_ALUMINIUM", "PLASTIC",
+    "HARDENED_STEEL", "ALUMINIUM_6061", "ALUMINIUM_7075", "CARBON_FIBER", "BRASS", "COPPER", "CPVC", "ACETAL",
+    "ULTEM", "HDPE", "OTHER",
+]
+PIVOT_SYSTEMS = ["BEARINGS", "BUSHINGS", "WASHERS", "OTHER"]
 
 BASE_TOOL_SPECS = [
     {
@@ -38,12 +57,19 @@ BASE_TOOL_SPECS = [
                     "type": "object",
                     "properties": {
                         "search": {"type": "string", "description": "Free-text search term"},
-                        "post_type": {"type": "string", "description": "Type of post"},
-                        "difficulty_tag": {"type": "string", "description": "Trick difficulty tag"},
-                        "knife_type": {"type": "string", "description": "Balisong knife type"},
-                        "knife_blade_style": {"type": "string", "description": "Blade style"},
-                        "knife_blade_material": {"type": "string", "description": "Blade material"},
-                        "knife_handle_material": {"type": "string", "description": "Handle material"},
+                        "post_type": {
+                            "type": "string",
+                            "enum": POST_TYPES,
+                            "description": (
+                                "TRICK_TUTORIAL for trick tutorials, COMBO for combo breakdowns, BUY_SELL for "
+                                "knives for sale or wanted, TRADE for trade offers, GENERIC for everything else"
+                            ),
+                        },
+                        "difficulty_tag": {"type": "string", "enum": DIFFICULTY_TAGS, "description": "Trick difficulty"},
+                        "knife_type": {"type": "string", "enum": KNIFE_TYPES, "description": "Balisong knife type"},
+                        "knife_blade_style": {"type": "string", "enum": BLADE_STYLES, "description": "Blade style"},
+                        "knife_blade_material": {"type": "string", "enum": BLADE_MATERIALS, "description": "Blade material"},
+                        "knife_handle_material": {"type": "string", "enum": HANDLE_MATERIALS, "description": "Handle material"},
                         "page": {"type": "integer", "description": "Page number, 0-indexed. Default 0."},
                         "size": {"type": "integer", "description": "Results per page. Default 20."},
                     },
@@ -72,12 +98,18 @@ BASE_TOOL_SPECS = [
     {
         "toolSpec": {
             "name": "get_collection",
-            "description": "Get a user's public balisong knife collection by their account ID.",
+            "description": (
+                "Get a user's public balisong knife collection by their account ID. If you only know their "
+                "display name, call get_account_profile first and use the accountId from its result."
+            ),
             "inputSchema": {
                 "json": {
                     "type": "object",
                     "properties": {
-                        "account_id": {"type": "string", "description": "Account ID of the collection owner"},
+                        "account_id": {
+                            "type": "string",
+                            "description": "Account ID of the collection owner (the accountId field from get_account_profile), never a display name or identifier code",
+                        },
                     },
                     "required": ["account_id"],
                 }
@@ -100,19 +132,26 @@ BASE_TOOL_SPECS = [
                     "properties": {
                         "search": {
                             "type": "string",
-                            "description": "Knife name or maker name to search for. Omit to consider the full catalog.",
+                            "description": (
+                                "A knife name OR a maker name, never both together -- the search matches one or "
+                                "the other, so \"Squid Industries Tsunami\" finds nothing while \"Tsunami\" works. "
+                                "Omit to consider the full catalog."
+                            ),
                         },
                         "blade_material": {
                             "type": "string",
-                            "description": "Filter to knives with at least one variant in this blade material (e.g. S35VN, TITANIUM).",
+                            "enum": BLADE_MATERIALS,
+                            "description": "Filter to knives with at least one variant in this blade material.",
                         },
                         "handle_material": {
                             "type": "string",
-                            "description": "Filter to knives with at least one version in this handle material (e.g. TITANIUM, ALUMINIUM_6061).",
+                            "enum": HANDLE_MATERIALS,
+                            "description": "Filter to knives with at least one version in this handle material.",
                         },
                         "pivot_system": {
                             "type": "string",
-                            "description": "Filter to knives with at least one version using this pivot system (e.g. BUSHING, BEARING).",
+                            "enum": PIVOT_SYSTEMS,
+                            "description": "Filter to knives with at least one version using this pivot system.",
                         },
                         "max_price": {
                             "type": "number",
