@@ -54,8 +54,10 @@ def stream_chat(
         {"text": build_page_context(current_path)},
     ]
     tool_config = {"tools": get_tool_specs(logged_in=access_token is not None)}
+    has_streamed_text = False
 
     while True:
+        needs_separator = has_streamed_text
         try:
             response = _converse_stream_with_retry(
                 modelId=settings.bedrock_model_id,
@@ -77,6 +79,11 @@ def stream_chat(
                 if "text" in delta:
                     block = content_blocks.setdefault(index, {"type": "text", "text": ""})
                     block["text"] += delta["text"]
+                    if needs_separator:
+                        yield "\n\n"
+                        needs_separator = False
+                    has_streamed_text = True
+                    yield delta["text"]
                 elif "toolUse" in delta:
                     block = content_blocks[index]
                     block["input_json"] += delta["toolUse"]["input"]
@@ -124,9 +131,6 @@ def stream_chat(
         messages.append({"role": "assistant", "content": assistant_content})
 
         if stop_reason != "tool_use":
-            for block in assistant_content:
-                if "text" in block:
-                    yield block["text"]
             save_history(session_id, messages)
             break
 
