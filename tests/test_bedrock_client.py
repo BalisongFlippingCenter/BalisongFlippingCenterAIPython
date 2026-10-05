@@ -55,6 +55,46 @@ def test_yields_text_and_saves_history_on_a_plain_response(mock_client):
 
 
 @patch("app.bedrock_client._client")
+def test_yields_each_text_delta_as_it_arrives(mock_client):
+    mock_client.converse_stream.return_value = {
+        "stream": [
+            {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "Hey, "}}},
+            {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "what's up?"}}},
+            {"messageStop": {"stopReason": "end_turn"}},
+        ]
+    }
+
+    chunks = list(stream_chat("s1", "hello"))
+
+    assert chunks == ["Hey, ", "what's up?"]
+    assert sessions.get_history("s1")[1] == {"role": "assistant", "content": [{"text": "Hey, what's up?"}]}
+
+
+@patch("app.bedrock_client.execute_tool")
+@patch("app.bedrock_client._client")
+def test_streams_text_before_a_tool_call_and_separates_it_from_the_next_round(mock_client, mock_execute_tool):
+    mock_execute_tool.return_value = {"content": []}
+    preamble_then_tool = {
+        "stream": [
+            {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"text": "Let me look."}}},
+            {
+                "contentBlockStart": {
+                    "contentBlockIndex": 1,
+                    "start": {"toolUse": {"toolUseId": "tool-1", "name": "search_posts"}},
+                }
+            },
+            {"contentBlockDelta": {"contentBlockIndex": 1, "delta": {"toolUse": {"input": "{}"}}}},
+            {"messageStop": {"stopReason": "tool_use"}},
+        ]
+    }
+    mock_client.converse_stream.side_effect = [preamble_then_tool, text_response_stream("Found it.")]
+
+    chunks = list(stream_chat("s1", "find something"))
+
+    assert chunks == ["Let me look.", "\n\n", "Found it."]
+
+
+@patch("app.bedrock_client._client")
 def test_uses_existing_session_history_as_the_starting_messages(mock_client):
     sessions.save_history("s1", [{"role": "user", "content": [{"text": "earlier"}]}])
     mock_client.converse_stream.return_value = text_response_stream("continuing")
