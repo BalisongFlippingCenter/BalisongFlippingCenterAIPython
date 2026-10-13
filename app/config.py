@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     backend_base_url: str = "http://localhost:8080/api"
     redis_url: str = "redis://localhost:6379/0"
     ai_service_shared_secret: str = ""
+    max_history_turns: int = 10
 
     class Config:
         env_file = ".env"
