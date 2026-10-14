@@ -13,6 +13,7 @@ class ChatRequest(BaseModel):
     message: str
     access_token: str | None = None
     current_path: str | None = None
+    client: str = "website"
 
 
 @router.post("/stream")
@@ -21,6 +22,6 @@ def chat_stream(request: ChatRequest, x_internal_secret: str | None = Header(def
         raise HTTPException(status_code=401, detail="Invalid shared secret")
 
     return StreamingResponse(
-        stream_chat(request.session_id, request.message, request.access_token, request.current_path),
+        stream_chat(request.session_id, request.message, request.access_token, request.current_path, request.client),
         media_type="text/plain",
     )

@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     ai_service_shared_secret: str = ""
     max_history_turns: int = 10
+    site_base_url: str = "https://www.balisongflippingcenter.com"
+    brave_search_api_key: str = ""
 
     class Config:
         env_file = ".env"

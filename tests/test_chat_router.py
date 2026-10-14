@@ -33,10 +33,11 @@ def test_chat_stream_forwards_all_fields_to_stream_chat(mock_stream_chat):
             "message": "hi",
             "access_token": "tok",
             "current_path": "/community",
+            "client": "website",
         },
     )
 
-    mock_stream_chat.assert_called_once_with("s1", "hi", "tok", "/community")
+    mock_stream_chat.assert_called_once_with("s1", "hi", "tok", "/community", "website")
 
 
 @patch("app.routers.chat.stream_chat")
@@ -45,7 +46,7 @@ def test_chat_stream_defaults_optional_fields_to_none(mock_stream_chat):
 
     client.post("/chat/stream", json={"session_id": "s1", "message": "hi"})
 
-    mock_stream_chat.assert_called_once_with("s1", "hi", None, None)
+    mock_stream_chat.assert_called_once_with("s1", "hi", None, None, "website")
 
 
 def test_chat_stream_requires_session_id_and_message():
@@ -87,3 +88,12 @@ def test_chat_stream_accepts_the_correct_shared_secret(mock_stream_chat, monkeyp
     )
     assert response.status_code == 200
     mock_stream_chat.assert_called_once()
+
+
+@patch("app.routers.chat.stream_chat")
+def test_chat_stream_forwards_the_discord_client(mock_stream_chat):
+    mock_stream_chat.return_value = iter(["ok"])
+
+    client.post("/chat/stream", json={"session_id": "s1", "message": "hi", "client": "discord"})
+
+    mock_stream_chat.assert_called_once_with("s1", "hi", None, None, "discord")

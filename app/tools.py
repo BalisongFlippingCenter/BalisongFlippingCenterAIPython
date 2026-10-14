@@ -10,6 +10,7 @@ from app.backend_client import (
     search_posts,
     submit_report,
 )
+from app.web_search import web_search
 
 TARGET_TYPES = ["POST", "COMMENT", "PROFILE", "CONVERSATION", "MESSAGE"]
 REPORT_REASONS = [
@@ -44,7 +45,7 @@ HANDLE_MATERIALS = [
 ]
 PIVOT_SYSTEMS = ["BEARINGS", "BUSHINGS", "WASHERS", "OTHER"]
 
-BASE_TOOL_SPECS = [
+SITE_TOOL_SPECS = [
     {
         "toolSpec": {
             "name": "search_posts",
@@ -116,6 +117,9 @@ BASE_TOOL_SPECS = [
             },
         }
     },
+]
+
+CATALOG_TOOL_SPECS = [
     {
         "toolSpec": {
             "name": "search_knife_catalog",
@@ -226,7 +230,34 @@ REPORT_TOOL_SPEC = {
 }
 
 
-def get_tool_specs(logged_in: bool) -> list[dict]:
+BASE_TOOL_SPECS = SITE_TOOL_SPECS + CATALOG_TOOL_SPECS
+
+WEB_SEARCH_TOOL_SPEC = {
+    "toolSpec": {
+        "name": "web_search",
+        "description": (
+            "Search the web. Use for balisong topics the knife catalog doesn't cover: knives or makers missing "
+            "from the catalog, new or upcoming releases, drops and restocks, reviews, and community news. "
+            "Returns titles, URLs, and short descriptions of the top results."
+        ),
+        "inputSchema": {
+            "json": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query, e.g. \"Squid Industries Kraken 2026 release\""},
+                },
+                "required": ["query"],
+            }
+        },
+    }
+}
+
+DISCORD_TOOL_SPECS = CATALOG_TOOL_SPECS + [WEB_SEARCH_TOOL_SPEC]
+
+
+def get_tool_specs(logged_in: bool, client: str = "website") -> list[dict]:
+    if client == "discord":
+        return DISCORD_TOOL_SPECS
     if logged_in:
         return BASE_TOOL_SPECS + [REPORT_TOOL_SPEC]
     return BASE_TOOL_SPECS
@@ -264,6 +295,8 @@ def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None
         }
     if name == "get_knife_details":
         return get_knife_details(tool_input["slug"])
+    if name == "web_search":
+        return web_search(tool_input["query"])
     if name == "get_maker_details":
         return get_maker_details(tool_input["slug"])
     if name == "report_content":
