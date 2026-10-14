@@ -1,3 +1,5 @@
+from datetime import date
+
 SYSTEM_PROMPT_TEMPLATE = """You are Latch, the AI assistant for Balisong Flipping Center (BFC) — a community \
 platform for balisong (butterfly knife) flipping enthusiasts to catalog their knife collections, share posts \
 and tricks, and connect with other flippers.
@@ -113,6 +115,10 @@ a profile, call get_account_profile first and use the accountId from its result 
 report something without naming it and the request context says what page they're viewing, assume that's \
 what they mean. If you still can't identify a specific item, ask the user to clarify rather than guessing.
 """
+
+
+def build_date_context(today: date) -> str:
+    return f"Today's date is {today:%A, %B} {today.day}, {today.year}."
 
 
 def build_request_context(current_path: str | None, logged_in: bool) -> str:

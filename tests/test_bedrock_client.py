@@ -114,6 +114,7 @@ def test_system_prompt_has_a_cache_point_between_the_static_persona_and_the_page
     system = mock_client.converse_stream.call_args.kwargs["system"]
     assert system[1] == {"cachePoint": {"type": "default"}}
     assert system[2] == {"text": "The user is currently viewing this page path: /community\nThe user is NOT logged in."}
+    assert system[3]["text"].startswith("Today's date is ")
     assert "You are Latch" in system[0]["text"]
 
 
@@ -317,7 +318,8 @@ def test_discord_client_uses_the_discord_prompt_without_page_context(mock_client
     list(stream_chat("s1", "what is a bushing", current_path="/community", client="discord"))
 
     system = mock_client.converse_stream.call_args.kwargs["system"]
-    assert len(system) == 2
+    assert len(system) == 3
+    assert system[2]["text"].startswith("Today's date is ")
     assert system[1] == {"cachePoint": {"type": "default"}}
     assert "Discord server" in system[0]["text"]
     assert "{site_base_url}" not in system[0]["text"]

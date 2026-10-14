@@ -2,13 +2,19 @@ import json
 import logging
 import time
 from collections.abc import Generator
+from datetime import date
 
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from app.config import settings
-from app.prompts import DISCORD_SYSTEM_PROMPT_TEMPLATE, SYSTEM_PROMPT_TEMPLATE, build_request_context
+from app.prompts import (
+    DISCORD_SYSTEM_PROMPT_TEMPLATE,
+    SYSTEM_PROMPT_TEMPLATE,
+    build_date_context,
+    build_request_context,
+)
 from app.sessions import get_history, save_history
 from app.tools import execute_tool, get_tool_specs
 
@@ -86,6 +92,7 @@ def stream_chat(
         system = [
             {"text": DISCORD_SYSTEM_PROMPT_TEMPLATE.format(site_base_url=settings.site_base_url)},
             {"cachePoint": {"type": "default"}},
+            {"text": build_date_context(date.today())},
         ]
     else:
         # The persona/rules block never changes between requests, so it's cached
@@ -96,6 +103,7 @@ def stream_chat(
             {"text": SYSTEM_PROMPT_TEMPLATE},
             {"cachePoint": {"type": "default"}},
             {"text": build_request_context(current_path, access_token is not None)},
+            {"text": build_date_context(date.today())},
         ]
     tool_config = {"tools": get_tool_specs(logged_in=access_token is not None, client=client)}
     has_streamed_text = False
