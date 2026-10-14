@@ -150,3 +150,16 @@ def test_execute_tool_report_content_submits_with_access_token(mock_submit_repor
 def test_execute_tool_unknown_tool_returns_error():
     result = execute_tool("not_a_real_tool", {})
     assert result == {"error": "Unknown tool: not_a_real_tool"}
+
+
+def test_discord_client_gets_only_catalog_tools_and_web_search():
+    for logged_in in (True, False):
+        names = tool_names(get_tool_specs(logged_in=logged_in, client="discord"))
+        assert names == ["search_knife_catalog", "get_knife_details", "get_maker_details", "web_search"]
+
+
+@patch("app.tools.web_search")
+def test_execute_tool_web_search_forwards_the_query(mock_web_search):
+    mock_web_search.return_value = {"results": []}
+    assert execute_tool("web_search", {"query": "kraken release"}) == {"results": []}
+    mock_web_search.assert_called_once_with("kraken release")

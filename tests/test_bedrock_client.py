@@ -309,3 +309,27 @@ def test_keeps_full_tool_results_within_the_current_turn(mock_client, mock_execu
     list(stream_chat("s1", "search"))
 
     assert messages_snapshots[1][-1]["content"][0]["toolResult"]["content"] == [{"json": {"posts": ["full", "result"]}}]
+
+
+@patch("app.bedrock_client._client")
+def test_discord_client_uses_the_discord_prompt_without_page_context(mock_client):
+    mock_client.converse_stream.return_value = text_response_stream("ok")
+    list(stream_chat("s1", "what is a bushing", current_path="/community", client="discord"))
+
+    system = mock_client.converse_stream.call_args.kwargs["system"]
+    assert len(system) == 2
+    assert system[1] == {"cachePoint": {"type": "default"}}
+    assert "Discord server" in system[0]["text"]
+    assert "{site_base_url}" not in system[0]["text"]
+
+
+@patch("app.bedrock_client._client")
+def test_discord_client_never_gets_site_tools_even_with_an_access_token(mock_client):
+    mock_client.converse_stream.return_value = text_response_stream("ok")
+    list(stream_chat("s1", "hi", access_token="tok", client="discord"))
+
+    tools = mock_client.converse_stream.call_args.kwargs["toolConfig"]["tools"]
+    names = [t["toolSpec"]["name"] for t in tools]
+    assert "report_content" not in names
+    assert "search_posts" not in names
+    assert "web_search" in names
