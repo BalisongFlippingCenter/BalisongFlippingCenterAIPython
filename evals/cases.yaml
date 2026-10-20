@@ -1,4 +1,5 @@
 # Each case runs its messages in one session; checks apply to the final turn.
+# Case keys besides messages/expect: logged_in, current_path, client (website | discord, default website).
 # expect keys (all optional):
 #   tools / forbid_tools   tool names that must / must not be called
 #   tool_args              {tool: {arg: substring}} -- some call of that tool has arg containing substring
@@ -65,6 +66,39 @@
       If the catalog search returned no match, Latch says the catalog doesn't have it yet and does not state
       any specs, materials, or prices that did not come from a tool result. If a tool did return a match,
       every spec Latch states must come from that result.
+
+# --- Terminology ---
+- id: terms-zen-pins
+  category: terminology
+  messages: ["What are zen pins?"]
+  expect:
+    contains: [handle]
+    judge: >-
+      Latch says zen pins are stop pins set inside the handles (instead of in the tang) that the tang rests
+      against when the knife is open or closed. It must not describe zen pins as a pivot, a pivot system, or a
+      single pin running through both handles.
+
+- id: terms-discord-zen-pins
+  category: terminology
+  client: discord
+  messages: ["In one sentence, what is a zen pin?"]
+  expect:
+    forbid_tools: [web_search]
+    contains: [handle]
+    judge: >-
+      Latch says a zen pin is a stop pin set inside the handles (instead of in the tang) that the tang rests
+      against. It must not describe a zen pin as a pivot, a pivot system, or a single pin running through
+      both handles.
+
+- id: terms-discord-tang-vs-zen
+  category: terminology
+  client: discord
+  messages: ["What's the difference between tang pins and zen pins?"]
+  expect:
+    forbid_tools: [web_search]
+    judge: >-
+      Latch says tang pins are set in the blade's tang and the handles stop against them, while zen pins are set
+      inside the handles and the tang stops against them. Neither is described as a pivot.
 
 # --- Posts ---
 - id: posts-tutorial-filter

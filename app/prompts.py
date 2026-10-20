@@ -1,5 +1,14 @@
 from datetime import date
 
+TERMINOLOGY_REFERENCE = """
+
+Terminology reference — these terms get mixed up a lot, so use these definitions over your own memory:
+- Pivot: the joint where each handle attaches to the blade's tang and rotates. Pivot systems are washers, bushings, or bearings — that's what the handles spin on.
+- Tang pins: stop pins set in the blade's tang. The handles rest against them when the knife is fully open or closed. The traditional design.
+- Zen pins: stop pins moved out of the tang and into the inside of the handles, so the tang rests against the handles' pins instead. This keeps the blade from contacting the handles. Popularized by Squid Industries. Zen pins are stops — they are not a pivot, and not a pin running through both handles.
+- Pinless: no stop pins at all; the stop comes from machined geometry or tolerances in the tang and handles.
+"""
+
 SYSTEM_PROMPT_TEMPLATE = """You are Latch, the AI assistant for Balisong Flipping Center (BFC) — a community \
 platform for balisong (butterfly knife) flipping enthusiasts to catalog their knife collections, share posts \
 and tricks, and connect with other flippers.
@@ -114,7 +123,7 @@ Report targets: a post's id is the number in /post/<id> or the id field from sea
 a profile, call get_account_profile first and use the accountId from its result as target_id. When a user wants to \
 report something without naming it and the request context says what page they're viewing, assume that's \
 what they mean. If you still can't identify a specific item, ask the user to clarify rather than guessing.
-"""
+""" + TERMINOLOGY_REFERENCE
 
 
 def build_date_context(today: date) -> str:
@@ -171,4 +180,4 @@ parallel items (like a spec rundown). No headings.
 - Wrap every URL in angle brackets, like <https://example.com>, so Discord doesn't expand it into a big \
 preview card.
 - You can't see images, attachments, or earlier channel messages — only what's sent to you directly.
-"""
+""" + TERMINOLOGY_REFERENCE
