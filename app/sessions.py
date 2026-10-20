@@ -16,3 +16,7 @@ def get_history(session_id: str) -> list[dict]:
 
 def save_history(session_id: str, messages: list[dict]) -> None:
     _client.set(f"session:{session_id}", json.dumps(messages), ex=SESSION_TTL_SECONDS)
+
+
+def clear_history(session_id: str) -> None:
+    _client.delete(f"session:{session_id}")

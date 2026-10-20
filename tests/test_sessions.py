@@ -27,3 +27,16 @@ def test_save_history_sets_a_ttl(fake_redis):
     sessions.save_history("s1", [{"role": "user", "content": [{"text": "hi"}]}])
     ttl = fake_redis.ttl("session:s1")
     assert 0 < ttl <= sessions.SESSION_TTL_SECONDS
+
+
+def test_clear_history_removes_the_session():
+    sessions.save_history("s1", [{"role": "user", "content": [{"text": "hi"}]}])
+    sessions.clear_history("s1")
+    assert sessions.get_history("s1") == []
+
+
+def test_clear_history_leaves_other_sessions_alone():
+    sessions.save_history("a", [{"role": "user", "content": [{"text": "a-msg"}]}])
+    sessions.save_history("b", [{"role": "user", "content": [{"text": "b-msg"}]}])
+    sessions.clear_history("a")
+    assert sessions.get_history("b") == [{"role": "user", "content": [{"text": "b-msg"}]}]

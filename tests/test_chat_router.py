@@ -97,3 +97,27 @@ def test_chat_stream_forwards_the_discord_client(mock_stream_chat):
     client.post("/chat/stream", json={"session_id": "s1", "message": "hi", "client": "discord"})
 
     mock_stream_chat.assert_called_once_with("s1", "hi", None, None, "discord")
+
+
+@patch("app.routers.chat.clear_history")
+def test_delete_session_clears_the_history(mock_clear_history):
+    response = client.delete("/chat/session/discord-1-2")
+
+    assert response.status_code == 204
+    mock_clear_history.assert_called_once_with("discord-1-2")
+
+
+@patch("app.routers.chat.clear_history")
+def test_delete_session_rejects_wrong_shared_secret(mock_clear_history, monkeypatch):
+    monkeypatch.setattr(settings, "ai_service_shared_secret", "internal-secret")
+    response = client.delete("/chat/session/discord-1-2", headers={"x-internal-secret": "wrong"})
+    assert response.status_code == 401
+    mock_clear_history.assert_not_called()
+
+
+@patch("app.routers.chat.clear_history")
+def test_delete_session_accepts_the_correct_shared_secret(mock_clear_history, monkeypatch):
+    monkeypatch.setattr(settings, "ai_service_shared_secret", "internal-secret")
+    response = client.delete("/chat/session/discord-1-2", headers={"x-internal-secret": "internal-secret"})
+    assert response.status_code == 204
+    mock_clear_history.assert_called_once_with("discord-1-2")
