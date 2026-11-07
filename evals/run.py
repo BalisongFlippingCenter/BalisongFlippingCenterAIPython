@@ -98,7 +98,7 @@ def run_case(case: dict) -> dict:
         for message in case["messages"]:
             calls = []
             with patch("app.bedrock_client.execute_tool", recording_execute_tool(calls)):
-                reply = "".join(bedrock_client.stream_chat(session_id, message, access_token, case.get("current_path")))
+                reply = "".join(bedrock_client.stream_chat(session_id, message, access_token, case.get("current_path"), case.get("client", "website")))
             turns.append({"message": message, "reply": reply, "tool_calls": calls})
     finally:
         logging.getLogger("app.bedrock_client").removeHandler(usage)
@@ -159,6 +159,7 @@ def check(case: dict, run: dict) -> list[str]:
 def format_transcript(case: dict, run: dict) -> str:
     lines = [f"User logged in: {'yes' if case.get('logged_in') else 'no'}"]
     lines.append(f"User's current page: {case.get('current_path') or 'unknown'}")
+    lines.append(f"Client: {case.get('client', 'website')}")
     for turn in run["turns"]:
         lines.append(f"\nUSER: {turn['message']}")
         for call in turn["tool_calls"]:

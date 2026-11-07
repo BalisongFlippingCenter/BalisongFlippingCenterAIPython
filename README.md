@@ -9,11 +9,12 @@ Latch answers questions about the site, balisong flipping, and specific knives/m
 - **Model access:** [Anthropic's Claude](https://www.anthropic.com/claude) via **AWS Bedrock's Converse API** (`boto3` `bedrock-runtime` client, `converse_stream`). Not a direct call to Anthropic's Messages API — Bedrock wraps the same model behind AWS's own request/response shape and IAM-based auth.
 - **Streaming:** the Bedrock response is a stream of content-block deltas; `stream_chat()` in `app/bedrock_client.py` accumulates them into text and tool-use blocks and yields text as it arrives, forwarded to the client as a chunked `StreamingResponse`.
 - **Conversation history:** kept per `session_id` across turns (`app/sessions.py`), persisted in Redis with a 24-hour TTL — survives restarts and is shared across instances. Before each request the history is trimmed to the last `MAX_HISTORY_TURNS` user turns (cut only at user-typed messages, so a tool call is never separated from its result), and tool results from earlier turns are replaced with a placeholder — the assistant's own reply already summarizes them, and raw results (e.g. 20 posts from `search_posts`) are the bulk of input tokens.
-- **System prompt:** the frozen persona/tone/site-navigation rules live in `SYSTEM_PROMPT_TEMPLATE` (`app/prompts.py`), byte-identical on every request. The per-request variables — the user's current page and whether they're logged in — come from `build_request_context()`, sent as a separate trailing block rather than interpolated into the template, so it never invalidates the cache below.
+- **System prompt:** the frozen persona/tone/site-navigation rules live in `SYSTEM_PROMPT_TEMPLATE` (`app/prompts.py`), byte-identical on every request. The per-request variables — the user's current page and whether they're logged in — come from `build_request_context()`, and today's date from `build_date_context()` (the model has no clock of its own), each sent as a separate trailing block rather than interpolated into the template, so it never invalidates the cache below.
 - **Prompt caching:** `bedrock_client.py` sends `system` as `[frozen prompt, cachePoint, request context]` on every turn, so the frozen block (plus `tools`, which chains ahead of it) is read from cache instead of billed at full price after the first request. Bedrock's minimum cacheable prefix is model-dependent — 4,096 tokens for Claude Haiku 4.5, the model this service currently uses — and `tools` + the frozen prompt currently come to ~4,300 tokens, so it activates (~4,300 cache-read tokens per call); verify via the `cacheReadInputTokens`/`cacheWriteInputTokens` fields logged from the Converse stream's `metadata` event, don't assume from the code alone.
 - **Tool calling:** `app/tools.py` declares the tool specs (`search_posts`, `get_account_profile`, `get_collection`, `search_knife_catalog` — free-text plus blade/handle material, pivot system, and max-price filters — `get_knife_details`, `get_maker_details`, and — for logged-in sessions only — `report_content`) and dispatches them. Each tool calls out to the real BFC backend via `app/backend_client.py` (an `httpx` client). This is genuine function calling: Claude decides when to call a tool, gets real results back, and continues the response — not prompt-stuffed retrieval.
 - **Error handling:** `backend_client.py` wraps every backend call in `try/except` for `httpx.HTTPStatusError` and `httpx.RequestError` (including timeouts, on a 10s client timeout) and returns the error back to the model as a tool result, so a failed lookup becomes something Claude can talk around instead of a crash. The Bedrock client (`bedrock_client.py`) retries throttling/service-unavailable errors up to 3 times with exponential backoff before falling back to a plain-text error yielded to the client.
-- **Auth:** `POST /chat/stream` requires an `X-Internal-Secret` header matching `AI_SERVICE_SHARED_SECRET`, sent by the backend on every relayed call. The check is skipped when the secret is unset (local dev).
+- **Discord mode:** the request's `client` field (`website` by default, forwarded by the backend from the caller's `X-Client-Id`) selects the persona. `client: "discord"` — [Balisong Bot](https://github.com/BalisongFlippingCenter/BalisongFlippingCenterDiscordBot), the public BFC Discord bot ([invite](https://discord.com/oauth2/authorize?client_id=1511180293107617853&permissions=309237762048&scope=bot%20applications.commands)) — swaps in `DISCORD_SYSTEM_PROMPT_TEMPLATE`, a general balisong expert that doesn't do site navigation, accounts, or reporting, and replaces the tool set with just the catalog tools plus `web_search` (`app/web_search.py`, Brave Search API) for anything the catalog doesn't cover. Access tokens are ignored in this mode. The Discord prompt + tools are well under Haiku 4.5's 4,096-token cache minimum, so Discord calls aren't prompt-cached.
+- **Auth:** `POST /chat/stream` and `DELETE /chat/session/{session_id}` require an `X-Internal-Secret` header matching `AI_SERVICE_SHARED_SECRET`, sent by the backend on every relayed call. The check is skipped when the secret is unset (local dev).
 
 ## Project layout
 
@@ -26,7 +27,7 @@ app/
   tools.py             Tool specs + dispatch
   backend_client.py    HTTP client for the BFC backend API
   sessions.py          Redis-backed conversation history
-  routers/chat.py      POST /chat/stream endpoint
+  routers/chat.py      POST /chat/stream and DELETE /chat/session/{session_id}
 tests/                 Pytest suite (respx for HTTP, fakeredis for sessions)
 evals/
   cases.yaml           Eval cases and their pass criteria
@@ -71,7 +72,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-63 tests covering every module. No real AWS or Redis needed — Bedrock calls are mocked directly (`unittest.mock` on the `boto3` client; moto doesn't support `bedrock-runtime`'s `converse_stream` well), backend HTTP calls are mocked with `respx`, and the Redis-backed session store is swapped for `fakeredis` in tests via `conftest.py`. Both deploy pipelines run this suite as a required gate before building/pushing/deploying.
+78 tests covering every module. No real AWS or Redis needed — Bedrock calls are mocked directly (`unittest.mock` on the `boto3` client; moto doesn't support `bedrock-runtime`'s `converse_stream` well), backend HTTP calls are mocked with `respx`, and the Redis-backed session store is swapped for `fakeredis` in tests via `conftest.py`. Both deploy pipelines run this suite as a required gate before building/pushing/deploying.
 
 ## Evals
 
@@ -97,6 +98,8 @@ Evals aren't part of CI: they cost money, results vary run to run, and the deplo
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis instance used to persist conversation history |
 | `AI_SERVICE_SHARED_SECRET` | `""` | Shared secret the backend sends as `X-Internal-Secret`; auth is skipped if unset |
 | `MAX_HISTORY_TURNS` | `10` | Number of most recent user turns kept in conversation history |
+| `SITE_BASE_URL` | `https://www.balisongflippingcenter.com` | Public site URL used when the Discord prompt cites catalog pages |
+| `BRAVE_SEARCH_API_KEY` | `""` | [Brave Search API](https://brave.com/search/api/) key for the Discord-only `web_search` tool; the tool returns an error result if unset |
 
 Defined in `app/config.py` via `pydantic-settings`, loaded from `.env`.
 
@@ -127,6 +130,10 @@ Request body:
 - `current_path` — optional; the page the user is currently on, used to tailor the system prompt's guidance.
 
 Response: `text/plain` streamed chunks of the assistant's reply, as they're generated.
+
+**`DELETE /chat/session/{session_id}`**
+
+Deletes the session's stored conversation history so the next message starts fresh. Returns `204` whether or not the session existed. Used by the Discord bot's `/latch-reset` (via the backend's `DELETE /ai/chat/session`).
 
 ## Known limitations
 
