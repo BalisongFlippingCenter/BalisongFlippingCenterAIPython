@@ -5,9 +5,12 @@
 #   tool_args              {tool: {arg: substring}} -- some call of that tool has arg containing substring
 #   no_tool_errors         default true -- fail if any tool result is an error
 #   contains / contains_any / not_contains   case-insensitive substrings of the reply
+#   max_chars              fail if the reply is longer than this
 #   judge                  rubric for the LLM judge
 #
-# Facts below are from the live catalog as of 2026-10-05 (Mako, Squidtrainer, Tsunami, Squiddy).
+# Facts below are from the live catalog as of 2026-11-07: 34 knives from Squid Industries and Nabalis.
+# Cheapest are the Nabalis Canyon and Impulse (from $40); titanium handles are Tsunami, Titanium Krake Raken,
+# Madko, Hydro. Learn rubrics follow the web repo's src/data/learnContent.ts.
 
 # --- Catalog ---
 - id: catalog-tsunami-blade-steel
@@ -48,7 +51,7 @@
   category: catalog
   messages: ["What's the cheapest knife you have listed? Under $100 ideally."]
   expect:
-    contains: [squiddy]
+    contains_any: [canyon, impulse]
 
 - id: catalog-maker
   category: catalog
@@ -57,15 +60,60 @@
     tools: [get_maker_details]
     contains: [/product-world/maker/squid-industries]
 
+- id: catalog-maker-nabalis
+  category: catalog
+  messages: ["What does Nabalis make?"]
+  expect:
+    tools: [get_maker_details]
+    contains: [/product-world/maker/nabalis]
+
 - id: catalog-knife-not-listed
   category: catalog
-  messages: ["Tell me about the Krake Raken"]
+  messages: ["Tell me about the BRS Replicant"]
   expect:
     tools: [search_knife_catalog]
     judge: >-
-      If the catalog search returned no match, Latch says the catalog doesn't have it yet and does not state
-      any specs, materials, or prices that did not come from a tool result. If a tool did return a match,
-      every spec Latch states must come from that result.
+      The catalog search returns no match, so Latch says the catalog doesn't have that knife yet. It states no
+      specs, materials, maker details, or prices for it -- any such detail would have to come from memory.
+
+- id: catalog-krake-raken-grounded
+  category: catalog
+  messages: ["Tell me about the Krake Raken"]
+  expect:
+    tools: [get_knife_details]
+    contains: [/product-world/knife/squid-industries-krake-raken]
+    judge: >-
+      Every factual claim about the Krake Raken -- specs, materials, pivot/pin/latch system, prices, versions,
+      release years, and where to buy or availability -- is supported by a tool result shown in the transcript.
+      Fail if any claim has no support in the tool results, even if it might be true.
+
+- id: catalog-vulp-pins
+  category: catalog
+  messages: ["Does the Vulp have zen pins?"]
+  expect:
+    tools: [get_knife_details]
+    judge: Latch says yes, the Nabalis Vulp uses zen pins, based on the tool result.
+
+- id: catalog-direct-price
+  category: catalog
+  messages: ["How much is a Squiddy?"]
+  expect:
+    contains_any: ["49.99", "$50"]
+    max_chars: 400
+    judge: >-
+      Latch answers the price directly and briefly. It does not dump the knife's full spec sheet or version
+      history when only the price was asked.
+
+- id: catalog-compare
+  category: catalog
+  messages: ["Tsunami or Krake Raken, which should I get?"]
+  expect:
+    tools: [get_knife_details]
+    contains: [/product-world/knife/squid-industries-tsunami, /product-world/knife/squid-industries-krake-raken]
+    judge: >-
+      Latch compares the two knives on real differences from the tool results (e.g. handle material, pivot
+      system, price) and gives a useful recommendation or tells the user what the choice depends on. Every
+      spec and price it cites is supported by the tool results.
 
 # --- Terminology ---
 - id: terms-zen-pins
@@ -160,6 +208,37 @@
   expect:
     contains: [/learn/how-to-choose-your-first-balisong]
 
+- id: learn-washers-vs-bearings
+  category: learn-navigation
+  messages: ["Washers or bearings, what's the difference?"]
+  expect:
+    contains: [/learn/bushings-vs-washers-vs-bearings]
+    judge: >-
+      Latch's explanation agrees with the site's Learn page: washers are flat rings (commonly phosphor bronze or
+      Teflon) between the handle and tang; bearings (IKBS) use small ball bearings for a very smooth,
+      free-spinning, often clicky action but need more cleaning and maintenance. It says nothing that contradicts
+      this.
+
+- id: learn-latchless
+  category: learn-navigation
+  messages: ["Should I take the latch off my balisong?"]
+  expect:
+    contains: [/learn/latch-types]
+    judge: >-
+      Latch's answer agrees with the site's Learn page: latchless is the overwhelming preference among
+      experienced flippers because the latch can get in the flip path and disrupt tricks or catch fingers, and
+      many knives ship with a removable latch. It treats it as personal preference, not a rule.
+
+- id: learn-channel-vs-sandwich
+  category: learn-navigation
+  messages: ["Channel or sandwich handles?"]
+  expect:
+    contains: [/learn/handle-types]
+    judge: >-
+      Latch's answer agrees with the site's Learn page: channel handles are machined from one piece with a channel
+      for the blade, stiffer and heavier with a solid feel; sandwich handles are outer scales on inner liners,
+      lighter, with swappable scales for customization. It says nothing that contradicts this.
+
 - id: nav-trick-clips
   category: learn-navigation
   messages: ["Where can I see other people's trick clips?"]
@@ -172,9 +251,10 @@
   expect:
     contains: [/product-world]
     judge: >-
-      Latch points to /product-world (the marketplace search) and/or Buy/Sell posts in /community. It must not
-      describe an individual /product-world/knife/... or /product-world/maker/... page as a place to buy or as
-      having listings; suggesting those pages for reading up on specs before buying is fine.
+      Latch points to /product-world (the marketplace search of Buy/Sell and Trade posts) and/or Buy/Sell posts in
+      /community. It must not describe an individual /product-world/knife/... or /product-world/maker/... page as
+      having user listings or for-sale posts. Saying a knife page has specs and links to retailers or the maker's
+      store is fine -- knife pages do show where-to-find links.
 
 - id: nav-beginner-mentoring
   category: learn-navigation
@@ -246,6 +326,12 @@
   expect:
     contains: ["750"]
 
+- id: followup-titanium-version
+  category: multi-turn
+  messages: ["Tell me about the Krake Raken", "Is there a titanium version?"]
+  expect:
+    contains: [/product-world/knife/squid-industries-titanium-krake-raken]
+
 - id: followup-collection-pronoun
   category: multi-turn
   messages: ["Look up QSwKLegacy895", "What's in their collection?"]
@@ -259,3 +345,36 @@
   expect:
     tool_args:
       report_content: {target_type: POST, reason: MISINFORMATION}
+
+# --- Discord ---
+# web_search needs BRAVE_SEARCH_API_KEY; without it the tool returns an error result, so these cases don't fail
+# on tool errors and instead check that Latch stays honest about what it found.
+- id: discord-catalog-knife
+  category: discord
+  client: discord
+  messages: ["tell me about the tsunami"]
+  expect:
+    tools: [get_knife_details]
+    contains: [<https://www.balisongflippingcenter.com/product-world/knife/squid-industries-tsunami>]
+    max_chars: 1500
+    judge: Every spec and price Latch states is supported by the tool results shown.
+
+- id: discord-not-in-catalog
+  category: discord
+  client: discord
+  messages: ["what's the BRS Replicant like?"]
+  expect:
+    tools: [search_knife_catalog, web_search]
+    no_tool_errors: false
+    judge: >-
+      Latch states no specs, prices, or release details for the BRS Replicant unless they appear in a tool result
+      shown in the transcript. If the web search failed or found nothing useful, it says it couldn't find details
+      rather than filling in from memory.
+
+- id: discord-off-topic
+  category: discord
+  client: discord
+  messages: ["what's the best pizza topping?"]
+  expect:
+    forbid_tools: [web_search]
+    judge: Latch briefly says it's a balisong bot and doesn't answer the pizza question at length.

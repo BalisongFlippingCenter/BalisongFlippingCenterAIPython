@@ -30,7 +30,9 @@ CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
 EVAL_ACCESS_TOKEN = "Bearer eval-token"
 FAKE_REPORT_RESULT = {"id": 0, "status": "PENDING", "note": "eval stub -- no report was filed"}
-MAX_JUDGE_RESULT_CHARS = 1500
+# High enough that the judge sees whole knife/maker detail results (~2-5k chars) -- a truncated result makes
+# real catalog facts look like hallucinations.
+MAX_JUDGE_RESULT_CHARS = 20000
 
 JUDGE_SYSTEM = """You grade replies from Latch, the AI assistant for Balisong Flipping Center, a community \
 site for balisong (butterfly knife) flippers. You are given a conversation, every tool call Latch made with \
@@ -153,6 +155,8 @@ def check(case: dict, run: dict) -> list[str]:
     for text in expect.get("not_contains", []):
         if text.lower() in reply:
             failures.append(f"reply should not contain {text!r}")
+    if "max_chars" in expect and len(reply) > expect["max_chars"]:
+        failures.append(f"reply is {len(reply)} chars, over {expect['max_chars']}")
     return failures
 
 
