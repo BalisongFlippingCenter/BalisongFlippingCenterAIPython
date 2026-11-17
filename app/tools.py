@@ -172,7 +172,7 @@ CATALOG_TOOL_SPECS = [
                 "json": {
                     "type": "object",
                     "properties": {
-                        "slug": {"type": "string", "description": "Knife slug, from search_knife_catalog result. An unknown slug returns the closest catalog matches."},
+                        "slug": {"type": "string", "description": "Knife slug, from search_knife_catalog results"},
                     },
                     "required": ["slug"],
                 }
