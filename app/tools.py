@@ -166,13 +166,13 @@ CATALOG_TOOL_SPECS = [
             "description": (
                 "Get full details for a specific knife from the reference catalog — every version, its "
                 "variants, specs, pricing, and where to buy. Requires the knife's slug, from a prior "
-                "search_knife_catalog result."
+                "search_knife_catalog result. An unknown slug returns the closest catalog matches."
             ),
             "inputSchema": {
                 "json": {
                     "type": "object",
                     "properties": {
-                        "slug": {"type": "string", "description": "Knife slug, from search_knife_catalog results"},
+                        "slug": {"type": "string", "description": "Knife slug, from search_knife_catalog result. An unknown slug returns the closest catalog matches."},
                     },
                     "required": ["slug"],
                 }
@@ -269,6 +269,26 @@ def _get_collection_by_display_name(display_name: str) -> dict[str, Any]:
     return get_collection_by_account(match["accountId"])
 
 
+def _get_knife_details_or_suggestions(slug: str) -> dict[str, Any]:
+    details = get_knife_details(slug)
+    if details.get("status_code") != 404:
+        return details
+    words = {word for word in slug.lower().split("-") if len(word) >= 3}
+    candidates = {}
+    for word in words:
+        results = search_knife_catalog(search=word)
+        if isinstance(results, list):
+            candidates.update({knife["slug"]: knife for knife in results})
+    scored = [(len(words & set(s.split("-"))), s) for s in candidates]
+    best = [candidates[s] for score, s in sorted(scored, key=lambda x: (-x[0], x[1])) if score > 0][:5]
+    if not best:
+        return {"error": f"No knife with the slug {slug!r}, and no similar knives in the catalog."}
+    return {
+        "error": f"No knife with the slug {slug!r}. Closest catalog matches — call get_knife_details with one of these slugs if it fits.",
+        "similar_knives": [{"slug": k["slug"], "name": k["name"], "makerName": k.get("makerName")} for k in best],
+    }
+
+
 def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None = None) -> dict[str, Any]:
     if name == "search_posts":
         return search_posts(
@@ -300,7 +320,7 @@ def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None
             )
         }
     if name == "get_knife_details":
-        return get_knife_details(tool_input["slug"])
+        return _get_knife_details_or_suggestions(tool_input["slug"])
     if name == "web_search":
         return web_search(tool_input["query"])
     if name == "get_maker_details":
