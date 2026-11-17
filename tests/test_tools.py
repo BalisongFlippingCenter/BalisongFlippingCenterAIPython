@@ -134,6 +134,42 @@ def test_execute_tool_get_knife_details(mock_get_knife_details):
     assert result == {"slug": "51"}
 
 
+@patch("app.tools.search_knife_catalog")
+@patch("app.tools.get_knife_details")
+def test_execute_tool_get_knife_details_suggests_similar_knives_on_404(mock_get_knife_details, mock_search_catalog):
+    mock_get_knife_details.return_value = {"error": "Not Found", "status_code": 404}
+    mock_search_catalog.side_effect = lambda search: {
+        "squid": [
+            {"slug": "squid-industries-squiddy", "name": "Squiddy", "makerName": "Squid Industries"},
+            {"slug": "squid-industries-mako", "name": "Mako", "makerName": "Squid Industries"},
+        ],
+        "squiddy": [{"slug": "squid-industries-squiddy", "name": "Squiddy", "makerName": "Squid Industries"}],
+        "industries": [{"slug": "squid-industries-mako", "name": "Mako", "makerName": "Squid Industries"}],
+    }[search]
+    result = execute_tool("get_knife_details", {"slug": "squid-industries-squiddy-v2"})
+    assert [k["slug"] for k in result["similar_knives"]] == ["squid-industries-squiddy", "squid-industries-mako"]
+    assert "squid-industries-squiddy-v2" in result["error"]
+
+
+@patch("app.tools.search_knife_catalog")
+@patch("app.tools.get_knife_details")
+def test_execute_tool_get_knife_details_reports_no_matches_on_404(mock_get_knife_details, mock_search_catalog):
+    mock_get_knife_details.return_value = {"error": "Not Found", "status_code": 404}
+    mock_search_catalog.return_value = []
+    result = execute_tool("get_knife_details", {"slug": "made-up-knife"})
+    assert "similar_knives" not in result
+    assert "no similar knives" in result["error"]
+
+
+@patch("app.tools.search_knife_catalog")
+@patch("app.tools.get_knife_details")
+def test_execute_tool_get_knife_details_passes_through_other_errors(mock_get_knife_details, mock_search_catalog):
+    mock_get_knife_details.return_value = {"error": "boom", "status_code": 500}
+    result = execute_tool("get_knife_details", {"slug": "51"})
+    mock_search_catalog.assert_not_called()
+    assert result == {"error": "boom", "status_code": 500}
+
+
 @patch("app.tools.get_maker_details")
 def test_execute_tool_get_maker_details(mock_get_maker_details):
     mock_get_maker_details.return_value = {"slug": "benchmade"}
