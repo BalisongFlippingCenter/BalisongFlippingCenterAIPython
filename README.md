@@ -23,6 +23,7 @@ app/
   main.py            FastAPI app, mounts the chat router
   config.py           Settings (env-driven)
   prompts.py           System prompt template
+  learn_content.py     The site's Learn page text, copied from the web repo's src/data/learnContent.ts
   bedrock_client.py    Streaming chat loop + Bedrock Converse calls
   tools.py             Tool specs + dispatch
   backend_client.py    HTTP client for the BFC backend API

@@ -99,20 +99,14 @@ SITE_TOOL_SPECS = [
     {
         "toolSpec": {
             "name": "get_collection",
-            "description": (
-                "Get a user's public balisong knife collection by their account ID. If you only know their "
-                "display name, call get_account_profile first and use the accountId from its result."
-            ),
+            "description": "Get a user's public balisong knife collection by their display name.",
             "inputSchema": {
                 "json": {
                     "type": "object",
                     "properties": {
-                        "account_id": {
-                            "type": "string",
-                            "description": "Account ID of the collection owner (the accountId field from get_account_profile), never a display name or identifier code",
-                        },
+                        "display_name": {"type": "string", "description": "The collection owner's display name"},
                     },
-                    "required": ["account_id"],
+                    "required": ["display_name"],
                 }
             },
         }
@@ -263,6 +257,18 @@ def get_tool_specs(logged_in: bool, client: str = "website") -> list[dict]:
     return BASE_TOOL_SPECS
 
 
+# Resolved here rather than by the model: earlier turns' tool results are compacted out of history, so on a
+# follow-up the model no longer has the accountId and tends to pass the profile's identifier code instead.
+def _get_collection_by_display_name(display_name: str) -> dict[str, Any]:
+    accounts = search_accounts(display_name)
+    if isinstance(accounts, dict):
+        return accounts
+    match = next((a for a in accounts if a["displayName"].lower() == display_name.lower()), None)
+    if match is None:
+        return {"error": f"No user with the display name {display_name!r}."}
+    return get_collection_by_account(match["accountId"])
+
+
 def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None = None) -> dict[str, Any]:
     if name == "search_posts":
         return search_posts(
@@ -282,7 +288,7 @@ def execute_tool(name: str, tool_input: dict[str, Any], access_token: str | None
             return get_account_by_id(account_id)
         return {"results": search_accounts(tool_input.get("query", ""))}
     if name == "get_collection":
-        return get_collection_by_account(tool_input["account_id"])
+        return _get_collection_by_display_name(tool_input["display_name"])
     if name == "search_knife_catalog":
         return {
             "results": search_knife_catalog(

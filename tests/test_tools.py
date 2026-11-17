@@ -72,11 +72,35 @@ def test_execute_tool_get_account_profile_falls_back_to_query_search(mock_search
 
 
 @patch("app.tools.get_collection_by_account")
-def test_execute_tool_get_collection(mock_get_collection):
+@patch("app.tools.search_accounts")
+def test_execute_tool_get_collection_resolves_display_name_to_account_id(mock_search_accounts, mock_get_collection):
+    mock_search_accounts.return_value = [
+        {"accountId": "7", "displayName": "flipperjoe2"},
+        {"accountId": "42", "displayName": "FlipperJoe"},
+    ]
     mock_get_collection.return_value = {"id": "col-1"}
-    result = execute_tool("get_collection", {"account_id": "42"})
+    result = execute_tool("get_collection", {"display_name": "flipperjoe"})
+    mock_search_accounts.assert_called_once_with("flipperjoe")
     mock_get_collection.assert_called_once_with("42")
     assert result == {"id": "col-1"}
+
+
+@patch("app.tools.get_collection_by_account")
+@patch("app.tools.search_accounts")
+def test_execute_tool_get_collection_reports_unknown_display_name(mock_search_accounts, mock_get_collection):
+    mock_search_accounts.return_value = [{"accountId": "7", "displayName": "flipperjoe2"}]
+    result = execute_tool("get_collection", {"display_name": "flipperjoe"})
+    mock_get_collection.assert_not_called()
+    assert "error" in result
+
+
+@patch("app.tools.get_collection_by_account")
+@patch("app.tools.search_accounts")
+def test_execute_tool_get_collection_passes_through_search_errors(mock_search_accounts, mock_get_collection):
+    mock_search_accounts.return_value = {"error": "boom", "status_code": 500}
+    result = execute_tool("get_collection", {"display_name": "flipperjoe"})
+    mock_get_collection.assert_not_called()
+    assert result == {"error": "boom", "status_code": 500}
 
 
 @patch("app.tools.search_knife_catalog")
