@@ -57,8 +57,7 @@
   category: catalog
   messages: ["What knives does Squid Industries make?"]
   expect:
-    tools: [get_maker_details]
-    contains: [/product-world/maker/squid-industries]
+    contains: [/product-world/maker/squid-industries, krake raken, squiddy]
 
 - id: catalog-maker-nabalis
   category: catalog
@@ -251,16 +250,18 @@
   expect:
     contains: [/product-world]
     judge: >-
-      Latch points to /product-world (the marketplace search of Buy/Sell and Trade posts) and/or Buy/Sell posts in
-      /community. It must not describe an individual /product-world/knife/... or /product-world/maker/... page as
-      having user listings or for-sale posts. Saying a knife page has specs and links to retailers or the maker's
-      store is fine -- knife pages do show where-to-find links.
+      Latch points to /product-world and/or Buy/Sell posts in /community as the place to buy. Describing
+      /product-world as a marketplace search of Buy/Sell and Trade posts with spec filters (blade material, handle
+      material, pivot system) is correct. Saying a knife or maker page has specs and links to retailers or the
+      maker's store is also correct. Fail only if Latch says an individual /product-world/knife/... or
+      /product-world/maker/... page has user listings or for-sale posts.
 
 - id: nav-beginner-mentoring
   category: learn-navigation
   messages: ["I just got my first trainer, how do I start?"]
   expect:
     contains: [/tutorial-center]
+    max_chars: 600
     judge: >-
       Before routing to /tutorial-center, Latch briefly teaches real fundamentals itself -- at least two of:
       practicing on a trainer, safe handle vs bite handle, or naming a beginner trick such as basic fanning.

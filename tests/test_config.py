@@ -12,7 +12,7 @@ def test_defaults_match_expected_values(monkeypatch):
     settings = Settings(_env_file=None)
 
     assert settings.aws_region == "us-east-1"
-    assert settings.bedrock_model_id == "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+    assert settings.bedrock_model_id == "us.anthropic.claude-sonnet-4-6"
     assert settings.backend_base_url == "http://localhost:8080/api"
     assert settings.redis_url == "redis://localhost:6379/0"
     assert settings.ai_service_shared_secret == ""
