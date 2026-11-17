@@ -1,0 +1,56 @@
+[
+  {
+    "id": "nav-where-to-buy",
+    "category": "learn-navigation",
+    "runs": 3,
+    "passed": 3,
+    "failures": [],
+    "transcripts": [
+      {
+        "turns": [
+          {
+            "message": "Where do I go to buy a balisong?",
+            "reply": "You've got two main options. Hit up /product-world \u2014 that's the marketplace search where you can filter by specs like blade material, handle material, pivot system, and price to find knives for sale. Or head to /community and look for Buy/Sell posts where people are listing knives they're selling or trading. Both'll show you what's actually available from the community right now.",
+            "tool_calls": []
+          }
+        ],
+        "latency_seconds": 1.6833379999734461,
+        "input_tokens": 364,
+        "output_tokens": 86,
+        "cache_read_tokens": 4503,
+        "cache_write_tokens": 0,
+        "failures": []
+      },
+      {
+        "turns": [
+          {
+            "message": "Where do I go to buy a balisong?",
+            "reply": "You've got two places to check: /product-world itself, which is the live marketplace where you can filter by specs (blade material, handle material, pivot system, price) and see Buy/Sell and Trade posts; or /community, where you can browse all community posts including marketplace listings and connect directly with sellers. Both will show you what's actually for sale right now.",
+            "tool_calls": []
+          }
+        ],
+        "latency_seconds": 1.3313831998966634,
+        "input_tokens": 364,
+        "output_tokens": 82,
+        "cache_read_tokens": 4503,
+        "cache_write_tokens": 0,
+        "failures": []
+      },
+      {
+        "turns": [
+          {
+            "message": "Where do I go to buy a balisong?",
+            "reply": "You've got two main places on BFC depending on what you're after.\n\nIf you want to browse what the community's actually selling or trading, check out /community \u2014 search the feed for Buy/Sell and Trade posts, or filter by those post types to see what's listed.\n\nIf you want a more structured marketplace feel with spec filters (blade material, handle material, pivot system, price range), hit /product-world \u2014 that's the real marketplace search where you can narrow down by exactly what you want in a knife.\n\nBoth pull from the same community listings, so pick whichever search style clicks for you.",
+            "tool_calls": []
+          }
+        ],
+        "latency_seconds": 1.7263237000443041,
+        "input_tokens": 364,
+        "output_tokens": 134,
+        "cache_read_tokens": 4503,
+        "cache_write_tokens": 0,
+        "failures": []
+      }
+    ]
+  }
+]
