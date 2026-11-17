@@ -17,26 +17,40 @@ import yaml  # noqa: E402
 
 from app import bedrock_client, sessions  # noqa: E402
 from app.config import settings  # noqa: E402
+from app.learn_content import LEARN_CONTENT  # noqa: E402
 from app.tools import execute_tool  # noqa: E402
 
 EVALS_DIR = Path(__file__).parent
 # Sonnet 4.6 is the strongest model this AWS account has Bedrock access to.
 JUDGE_MODEL_ID = "us.anthropic.claude-sonnet-4-6"
 # USD per million (input, output) tokens at Anthropic list price -- Bedrock on-demand rates may differ.
-LATCH_PRICING = (1.00, 5.00)
-JUDGE_PRICING = (3.00, 15.00)
+MODEL_PRICING = {
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0": (1.00, 5.00),
+    "us.anthropic.claude-sonnet-4-6": (3.00, 15.00),
+}
+JUDGE_PRICING = MODEL_PRICING[JUDGE_MODEL_ID]
+# Text written before a tool call streams to the user, so these read as narration in the final reply.
+NARRATION_PHRASES = ["let me pull", "let me search", "let me look", "let me check", "let me grab", "let me find"]
 # Prompt-cache reads bill at 0.1x the input price and 5-minute cache writes at 1.25x.
 CACHE_READ_MULTIPLIER = 0.1
 CACHE_WRITE_MULTIPLIER = 1.25
 EVAL_ACCESS_TOKEN = "Bearer eval-token"
 FAKE_REPORT_RESULT = {"id": 0, "status": "PENDING", "note": "eval stub -- no report was filed"}
-MAX_JUDGE_RESULT_CHARS = 1500
+# High enough that the judge sees whole knife/maker detail results (~2-5k chars) -- a truncated result makes
+# real catalog facts look like hallucinations.
+MAX_JUDGE_RESULT_CHARS = 20000
 
 JUDGE_SYSTEM = """You grade replies from Latch, the AI assistant for Balisong Flipping Center, a community \
 site for balisong (butterfly knife) flippers. You are given a conversation, every tool call Latch made with \
 the result it got back, and a rubric. Decide whether Latch's final reply satisfies the rubric. Judge only \
-against the rubric and the tool results shown -- not your own knowledge of knives or the site. Record your \
-verdict with the record_verdict tool."""
+against the rubric, the tool results shown, and the site's Learn page content below -- not your own knowledge \
+of knives or the site. Latch has the Learn content in its instructions, so a claim backed by it (for example \
+that a knife is one of the buying guide's picks) counts as supported even without a tool call. Record your \
+verdict with the record_verdict tool.
+
+Learn page content:
+
+""" + LEARN_CONTENT
 
 VERDICT_TOOL = {
     "toolSpec": {
@@ -140,6 +154,9 @@ def check(case: dict, run: dict) -> list[str]:
                 for call in calls
             ):
                 failures.append(f"no {name} call with {arg} containing {needle!r}")
+    for phrase in NARRATION_PHRASES:
+        if phrase in reply:
+            failures.append(f"reply narrates tool use ({phrase!r})")
     if expect.get("no_tool_errors", True):
         for call in calls:
             error = tool_error(call["result"])
@@ -153,6 +170,8 @@ def check(case: dict, run: dict) -> list[str]:
     for text in expect.get("not_contains", []):
         if text.lower() in reply:
             failures.append(f"reply should not contain {text!r}")
+    if "max_chars" in expect and len(reply) > expect["max_chars"]:
+        failures.append(f"reply is {len(reply)} chars, over {expect['max_chars']}")
     return failures
 
 
@@ -169,19 +188,18 @@ def format_transcript(case: dict, run: dict) -> str:
     return "\n".join(lines)
 
 
-def judge(case: dict, run: dict, client) -> tuple[str | None, int, int]:
+def judge(case: dict, run: dict, client) -> tuple[str | None, dict]:
     prompt = f"{format_transcript(case, run)}\n\nRubric for Latch's final reply:\n{case['expect']['judge']}"
     response = client.converse(
         modelId=JUDGE_MODEL_ID,
-        system=[{"text": JUDGE_SYSTEM}],
+        system=[{"text": JUDGE_SYSTEM}, {"cachePoint": {"type": "default"}}],
         messages=[{"role": "user", "content": [{"text": prompt}]}],
         toolConfig={"tools": [VERDICT_TOOL], "toolChoice": {"tool": {"name": "record_verdict"}}},
         inferenceConfig={"maxTokens": 1024},
     )
-    usage = response["usage"]
     verdict = next(block["toolUse"]["input"] for block in response["output"]["message"]["content"] if "toolUse" in block)
     failure = None if verdict["pass"] else f"judge: {verdict['reason']}"
-    return failure, usage["inputTokens"], usage["outputTokens"]
+    return failure, response["usage"]
 
 
 def cost(input_tokens: int, output_tokens: int, pricing: tuple[float, float], cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
@@ -202,9 +220,11 @@ def write_report(results: list[dict], runs_per_case: int, totals: dict) -> Path:
         by_category[result["category"]][1] += result["runs"]
 
     latch_cost = cost(
-        totals["latch_input"], totals["latch_output"], LATCH_PRICING, totals["latch_cache_read"], totals["latch_cache_write"]
+        totals["latch_input"], totals["latch_output"], MODEL_PRICING[settings.bedrock_model_id], totals["latch_cache_read"], totals["latch_cache_write"]
     )
-    judge_cost = cost(totals["judge_input"], totals["judge_output"], JUDGE_PRICING)
+    judge_cost = cost(
+        totals["judge_input"], totals["judge_output"], JUDGE_PRICING, totals["judge_cache_read"], totals["judge_cache_write"]
+    )
     lines = [
         f"# Latch eval report -- {timestamp}",
         "",
@@ -256,9 +276,11 @@ def main():
             run = run_case(case)
             failures = check(case, run)
             if "judge" in case.get("expect", {}):
-                judge_failure, judge_input, judge_output = judge(case, run, judge_client)
-                totals["judge_input"] += judge_input
-                totals["judge_output"] += judge_output
+                judge_failure, judge_usage = judge(case, run, judge_client)
+                totals["judge_input"] += judge_usage["inputTokens"]
+                totals["judge_output"] += judge_usage["outputTokens"]
+                totals["judge_cache_read"] += judge_usage.get("cacheReadInputTokens", 0)
+                totals["judge_cache_write"] += judge_usage.get("cacheWriteInputTokens", 0)
                 if judge_failure:
                     failures.append(judge_failure)
             totals["latch_input"] += run["input_tokens"]
