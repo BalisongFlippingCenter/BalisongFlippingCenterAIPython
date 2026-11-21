@@ -7,6 +7,7 @@
 #   contains / contains_any / not_contains   case-insensitive substrings of the reply
 #   max_chars              fail if the reply is longer than this
 #   judge                  rubric for the LLM judge
+#   voice                  also judge against the shared voice rubric (VOICE_RUBRIC in run.py)
 #
 # Facts below are from the live catalog as of 2026-11-07: 34 knives from Squid Industries and Nabalis.
 # Cheapest are the Nabalis Canyon and Impulse (from $40); titanium handles are Tsunami, Titanium Krake Raken,
@@ -32,6 +33,8 @@
   messages: ["Tell me about the Tsunami"]
   expect:
     contains: [/product-world/knife/squid-industries-tsunami]
+    max_chars: 1100
+    voice: true
 
 - id: catalog-tsunami-trainer-price
   category: catalog
@@ -58,6 +61,11 @@
   messages: ["What knives does Squid Industries make?"]
   expect:
     contains: [/product-world/maker/squid-industries, krake raken, squiddy]
+    max_chars: 1100
+    voice: true
+    judge: >-
+      Latch gives a feel for the lineup by naming a handful of standouts across the range rather than listing
+      every model the maker result returned.
 
 - id: catalog-maker-nabalis
   category: catalog
@@ -65,12 +73,15 @@
   expect:
     tools: [get_maker_details]
     contains: [/product-world/maker/nabalis]
+    max_chars: 1100
+    voice: true
 
 - id: catalog-knife-not-listed
   category: catalog
   messages: ["Tell me about the BRS Replicant"]
   expect:
     tools: [search_knife_catalog]
+    voice: true
     judge: >-
       The catalog search returns no match, so Latch says the catalog doesn't have that knife yet. It states no
       specs, materials, maker details, or prices for it -- any such detail would have to come from memory.
@@ -81,6 +92,8 @@
   expect:
     tools: [get_knife_details]
     contains: [/product-world/knife/squid-industries-krake-raken]
+    max_chars: 1200
+    voice: true
     judge: >-
       Every factual claim about the Krake Raken -- specs, materials, pivot/pin/latch system, prices, versions,
       release years, and where to buy or availability -- is supported by a tool result shown in the transcript.
@@ -109,6 +122,8 @@
   expect:
     tools: [get_knife_details]
     contains: [/product-world/knife/squid-industries-tsunami, /product-world/knife/squid-industries-krake-raken]
+    max_chars: 1400
+    voice: true
     judge: >-
       Latch compares the two knives on real differences from the tool results (e.g. handle material, pivot
       system, price) and gives a useful recommendation or tells the user what the choice depends on. Every
@@ -181,6 +196,7 @@
   expect:
     tools: [get_account_profile]
     contains: [/QSwKLegacy895/4241]
+    voice: true
 
 - id: profile-collection
   category: profiles
@@ -233,6 +249,7 @@
   messages: ["Channel or sandwich handles?"]
   expect:
     contains: [/learn/handle-types]
+    voice: true
     judge: >-
       Latch's answer agrees with the site's Learn page: channel handles are machined from one piece with a channel
       for the blade, stiffer and heavier with a solid feel; sandwich handles are outer scales on inner liners,
@@ -310,6 +327,30 @@
   messages: ["Compare bushings and bearings for me"]
   expect:
     not_contains: ["**", "](", "`"]
+    voice: true
+
+- id: style-no-repeated-wrapup
+  category: style
+  messages: ["Washers or bearings, what's the difference?", "Channel or sandwich handles?"]
+  expect:
+    contains: [/learn/handle-types]
+    voice: true
+    judge: >-
+      Latch's final reply doesn't reuse the structure or closing line of its earlier reply -- for example both
+      ending with "Neither is objectively better", "it comes down to preference", or "The short version".
+
+- id: style-knife-take
+  category: style
+  messages: ["Is the Mako any good?"]
+  expect:
+    tools: [get_knife_details]
+    contains: [/product-world/knife/squid-industries-mako]
+    max_chars: 900
+    voice: true
+    judge: >-
+      Latch gives an actual opinion grounded in the tool results (what the knife offers for its price, who it
+      suits) instead of just listing specs. It doesn't claim reviews, reputation, or community opinion that the
+      tool results don't contain.
 
 - id: style-casual-greeting
   category: style
@@ -370,7 +411,7 @@
     judge: >-
       Latch states no specs, prices, or release details for the BRS Replicant unless they appear in a tool result
       shown in the transcript. If the web search failed or found nothing useful, it says it couldn't find details
-      rather than filling in from memory.
+      rather than filling in from memory -- including not guessing who the maker is or what the name stands for.
 
 - id: discord-off-topic
   category: discord
