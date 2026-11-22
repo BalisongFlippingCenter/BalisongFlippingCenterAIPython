@@ -39,6 +39,13 @@ FAKE_REPORT_RESULT = {"id": 0, "status": "PENDING", "note": "eval stub -- no rep
 # High enough that the judge sees whole knife/maker detail results (~2-5k chars) -- a truncated result makes
 # real catalog facts look like hallucinations.
 MAX_JUDGE_RESULT_CHARS = 20000
+VOICE_RUBRIC = """Voice: the reply reads like an experienced flipper texting back, not a product page or a \
+support bot. Fail if it has section headers or label lines (like "Construction:" or "Where to Buy:"), walks \
+through every spec field the tool returned, quotes the maker's marketing copy, ends by offering to look \
+something else up or asking what else they want, explains its own limits or training data, or leans on stock \
+wrap-ups like "The short version" or "Neither is objectively better". When the question is about a knife, a \
+maker, or a choice between options, the reply leads with what matters most and gives a real take (what stands \
+out, who it suits, which to pick) rather than staying neutral."""
 
 JUDGE_SYSTEM = """You grade replies from Latch, the AI assistant for Balisong Flipping Center, a community \
 site for balisong (butterfly knife) flippers. You are given a conversation, every tool call Latch made with \
@@ -188,8 +195,12 @@ def format_transcript(case: dict, run: dict) -> str:
     return "\n".join(lines)
 
 
+def rubric(expect: dict) -> str:
+    return "\n\n".join(part for part in [expect.get("judge"), VOICE_RUBRIC if expect.get("voice") else None] if part)
+
+
 def judge(case: dict, run: dict, client) -> tuple[str | None, dict]:
-    prompt = f"{format_transcript(case, run)}\n\nRubric for Latch's final reply:\n{case['expect']['judge']}"
+    prompt = f"{format_transcript(case, run)}\n\nRubric for Latch's final reply:\n{rubric(case['expect'])}"
     response = client.converse(
         modelId=JUDGE_MODEL_ID,
         system=[{"text": JUDGE_SYSTEM}, {"cachePoint": {"type": "default"}}],
@@ -275,7 +286,7 @@ def main():
         for _ in range(args.runs):
             run = run_case(case)
             failures = check(case, run)
-            if "judge" in case.get("expect", {}):
+            if rubric(case.get("expect", {})):
                 judge_failure, judge_usage = judge(case, run, judge_client)
                 totals["judge_input"] += judge_usage["inputTokens"]
                 totals["judge_output"] += judge_usage["outputTokens"]
