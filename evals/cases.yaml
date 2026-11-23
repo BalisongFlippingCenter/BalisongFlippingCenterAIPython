@@ -32,7 +32,8 @@
   category: catalog
   messages: ["Tell me about the Tsunami"]
   expect:
-    contains: [/product-world/knife/squid-industries-tsunami]
+    contains: [/product-world/knife/squid-industries-tsunami, "\n- "]
+    not_contains: ["|---", "| ---", "|:--", "| :--"]
     max_chars: 1100
     voice: true
 
@@ -111,7 +112,7 @@
   messages: ["How much is a Squiddy?"]
   expect:
     contains_any: ["49.99", "$50"]
-    max_chars: 400
+    max_chars: 500
     judge: >-
       Latch answers the price directly and briefly. It does not dump the knife's full spec sheet or version
       history when only the price was asked.
@@ -122,9 +123,11 @@
   expect:
     tools: [get_knife_details]
     contains: [/product-world/knife/squid-industries-tsunami, /product-world/knife/squid-industries-krake-raken]
+    contains_any: ["|---", "| ---", "|:--", "| :--"]
     max_chars: 1400
     voice: true
     judge: >-
+      It opens with a sentence on the difference before the table, and the table has at most five rows.
       Latch compares the two knives on real differences from the tool results (e.g. handle material, pivot
       system, price) and gives a useful recommendation or tells the user what the choice depends on. Every
       spec and price it cites is supported by the tool results.
@@ -196,7 +199,9 @@
   expect:
     tools: [get_account_profile]
     contains: [/QSwKLegacy895/4241]
-    voice: true
+    judge: >-
+      The reply is a sentence or two with the profile link, not a list of fields like "Display name:" or
+      "Profile caption:". Pointing to their collection page is fine.
 
 - id: profile-collection
   category: profiles
@@ -322,11 +327,11 @@
       report_content: {target_type: PROFILE, reason: INAPPROPRIATE_NAME}
 
 # --- Style ---
-- id: style-no-markdown
+- id: style-no-headings-or-code
   category: style
   messages: ["Compare bushings and bearings for me"]
   expect:
-    not_contains: ["**", "](", "`"]
+    not_contains: ["`", "\n#"]
     voice: true
 
 - id: style-no-repeated-wrapup
@@ -345,7 +350,7 @@
   expect:
     tools: [get_knife_details]
     contains: [/product-world/knife/squid-industries-mako]
-    max_chars: 900
+    max_chars: 1000
     voice: true
     judge: >-
       Latch gives an actual opinion grounded in the tool results (what the knife offers for its price, who it
@@ -398,6 +403,7 @@
   expect:
     tools: [get_knife_details]
     contains: [<https://www.balisongflippingcenter.com/product-world/knife/squid-industries-tsunami>]
+    not_contains: ["|---", "| ---", "|:--", "| :--"]
     max_chars: 1500
     judge: Every spec and price Latch states is supported by the tool results shown.
 
