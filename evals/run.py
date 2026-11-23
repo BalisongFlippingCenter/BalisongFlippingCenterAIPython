@@ -40,8 +40,10 @@ FAKE_REPORT_RESULT = {"id": 0, "status": "PENDING", "note": "eval stub -- no rep
 # real catalog facts look like hallucinations.
 MAX_JUDGE_RESULT_CHARS = 20000
 VOICE_RUBRIC = """Voice: the reply reads like an experienced flipper texting back, not a product page or a \
-support bot. Fail if it has section headers or label lines (like "Construction:" or "Where to Buy:"), walks \
-through every spec field the tool returned, quotes the maker's marketing copy, ends by offering to look \
+support bot. A short bulleted spec list or a small comparison table after the take is fine. Fail if it has \
+section headers (a "Construction:" or "Where to Buy:" line over a block of text, or Markdown headings), opens \
+with a list or table before giving its take, puts full sentences in bullets, walks through every spec field \
+the tool returned, quotes the maker's marketing copy, ends by offering to look \
 something else up or asking what else they want, explains its own limits or training data, or leans on stock \
 wrap-ups like "The short version" or "Neither is objectively better". When the question is about a knife, a \
 maker, or a choice between options, the reply leads with what matters most and gives a real take (what stands \
